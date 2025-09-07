@@ -23,10 +23,6 @@ public sealed class MediaPickerConverter : IAlgoliaPropertyValueConverter
 
 	private static Dictionary<string, object?> ToShape(IPublishedContent m, string? culture) => new()
 	{
-		["id"] = m.Id,
-		["key"] = m.Key,
-		["name"] = culture == null ? m.Name : m.Name(culture),
-		["url"] = culture == null ? m.Url() : m.Url(culture),
-		["type"] = m.ContentType.Alias
+		["name"] = culture == null ? m.Name : m.Name(culture)
 	};
 }

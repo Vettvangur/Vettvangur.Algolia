@@ -110,13 +110,7 @@ public sealed class ContentPickerConverter : IAlgoliaPropertyValueConverter
 			? new Dictionary<string, object?>()
 			: new Dictionary<string, object?>
 			{
-				["id"] = c.Id,
-				["key"] = c.Key,
-				["name"] = culture == null ? c.Name : c.Name(culture),
-				["url"] = culture == null ? c.Url() : c.Url(culture),
-				["contentTypeAlias"] = c.ContentType.Alias,
-				["level"] = c.Level,
-				["parentId"] = c.Parent?.Id
+				["name"] = culture == null ? c.Name : c.Name(culture)
 			};
 
 	// Parses "umb://{entityType}/{guid}" → GuidUdi

@@ -2,6 +2,7 @@ using Algolia.Search.Clients;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Options;
+using Vettvangur.Algolia.Converters;
 
 namespace Vettvangur.Algolia;
 public static class AlgoliaServiceCollectionExtensions
@@ -29,6 +30,9 @@ public static class AlgoliaServiceCollectionExtensions
 		services.AddHostedService<AlgoliaIndexWorker>();
 
 		services.TryAddSingleton<IAlgoliaIndexService, AlgoliaIndexService>();
+
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IAlgoliaPropertyValueConverter, MediaPickerConverter>());
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IAlgoliaPropertyValueConverter, ContentPickerConverter>());
 
 		return services;
 	}

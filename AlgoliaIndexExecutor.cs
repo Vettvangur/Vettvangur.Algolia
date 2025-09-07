@@ -14,13 +14,15 @@ internal sealed class AlgoliaIndexExecutor
 	private readonly ISearchClient _client;
 	private readonly AlgoliaConfig _config;
 	private readonly IReadOnlyList<IAlgoliaDocumentEnricher> _enrichers;
+	private readonly IReadOnlyList<IAlgoliaPropertyValueConverter> _propConverters;
 
 	public AlgoliaIndexExecutor(
 		ILogger<AlgoliaIndexExecutor> logger,
 		IUmbracoContextFactory umbracoContextFactory,
 		ISearchClient client,
 		IOptions<AlgoliaConfig> config,
-		IEnumerable<IAlgoliaDocumentEnricher>? enrichers = null)
+		IEnumerable<IAlgoliaDocumentEnricher>? enrichers = null,
+		IEnumerable<IAlgoliaPropertyValueConverter>? propConverters = null)
 	{
 		_logger = logger;
 		_umbracoContextFactory = umbracoContextFactory;
@@ -29,6 +31,8 @@ internal sealed class AlgoliaIndexExecutor
 		_enrichers = (enrichers ?? Array.Empty<IAlgoliaDocumentEnricher>())
 			  .OrderBy(e => e.Order)
 			  .ToList();
+		_propConverters = (propConverters ?? Array.Empty<IAlgoliaPropertyValueConverter>())
+						  .OrderBy(c => c.Order).ToList();
 	}
 
 	// ---------- Public API ----------
@@ -226,7 +230,7 @@ internal sealed class AlgoliaIndexExecutor
 		HashSet<string> Aliases,
 		IDictionary<string, HashSet<string>> PropsByAlias);
 
-	private AlgoliaDocument? MapForCulture(IPublishedContent c, string? culture, HashSet<string>? allowedProps = null)
+	private AlgoliaDocument? MapForCulture(IPublishedContent c, string? culture, string baseIndexName, HashSet<string>? allowedProps = null)
 	{
 		if (!c.IsPublished(culture)) return null;
 
@@ -248,10 +252,16 @@ internal sealed class AlgoliaIndexExecutor
 
 		if (allowedProps is { Count: > 0 })
 		{
-			foreach (var p in c.Properties.Where(p => allowedProps.Contains(p.Alias)))
+			foreach (var prop in c.Properties.Where(p => allowedProps.Contains(p.Alias)))
 			{
-				var v = c.Value(p.Alias, culture);
-				if (v != null) doc.Data[p.Alias] = v;
+				var raw = c.Value(prop.Alias, culture);
+				if (raw is null) continue;
+
+				var ctx = new AlgoliaPropertyContext(c, prop, culture, baseIndexName);
+				var converted = ConvertProperty(ctx, raw);
+
+				if (converted is not null)
+					doc.Data[prop.Alias] = converted;
 			}
 		}
 
@@ -259,12 +269,12 @@ internal sealed class AlgoliaIndexExecutor
 	}
 
 	private AlgoliaDocument? MapAndEnrichForCulture(
-	IPublishedContent content,
-	string? culture,
-	string baseIndexName,
-	HashSet<string>? allowedProps)
+		IPublishedContent content,
+		string? culture,
+		string baseIndexName,
+		HashSet<string>? allowedProps)
 	{
-		var doc = MapForCulture(content, culture, allowedProps);
+		var doc = MapForCulture(content, culture, baseIndexName, allowedProps);
 		if (doc is null || _enrichers.Count == 0) return doc;
 
 		var ctx = new AlgoliaEnrichmentContext(
@@ -278,5 +288,16 @@ internal sealed class AlgoliaIndexExecutor
 			enricher.Enrich(doc, ctx);
 
 		return doc;
+	}
+
+	private object? ConvertProperty(AlgoliaPropertyContext ctx, object? raw)
+	{
+		object? value = raw;
+		foreach (var c in _propConverters)
+		{
+			if (c.CanHandle(ctx))
+				value = c.Convert(ctx, value);
+		}
+		return value;
 	}
 }

@@ -1,0 +1,17 @@
+{
+  "bootstrap-sha": "",
+  "packages": {
+    ".": {
+      "package-name": "Vettvangur.Algolia",
+      "release-type": "simple",
+      "changelog-path": "CHANGELOG.md",
+      "extra-files": [
+        {
+          "type": "xml",
+          "path": "src/Vettvangur.Algolia/Vettvangur.Algolia.csproj",
+          "xpath": "/Project/PropertyGroup/Version"
+        }
+      ]
+    }
+  }
+}

@@ -1,6 +1,7 @@
 using Algolia.Search.Clients;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Umbraco.Cms.Core.Configuration.UmbracoSettings;
 using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Cms.Core.Web;
 using Umbraco.Extensions;
@@ -15,14 +16,18 @@ internal sealed class AlgoliaIndexExecutor
 	private readonly AlgoliaConfig _config;
 	private readonly IReadOnlyList<IAlgoliaDocumentEnricher> _enrichers;
 	private readonly IReadOnlyList<IAlgoliaPropertyValueConverter> _propConverters;
-
+	private readonly IPublishedValueFallback _publishedValueFallback;
+	private readonly IVariationContextAccessor _variation;
 	public AlgoliaIndexExecutor(
 		ILogger<AlgoliaIndexExecutor> logger,
 		IUmbracoContextFactory umbracoContextFactory,
 		ISearchClient client,
 		IOptions<AlgoliaConfig> config,
+		IPublishedValueFallback publishedValueFallback,
+		IVariationContextAccessor variation,
 		IEnumerable<IAlgoliaDocumentEnricher>? enrichers = null,
-		IEnumerable<IAlgoliaPropertyValueConverter>? propConverters = null)
+		IEnumerable<IAlgoliaPropertyValueConverter>? propConverters = null
+)
 	{
 		_logger = logger;
 		_umbracoContextFactory = umbracoContextFactory;
@@ -33,6 +38,8 @@ internal sealed class AlgoliaIndexExecutor
 			  .ToList();
 		_propConverters = (propConverters ?? Array.Empty<IAlgoliaPropertyValueConverter>())
 						  .OrderBy(c => c.Order).ToList();
+		_publishedValueFallback = publishedValueFallback;
+		_variation = variation;
 	}
 
 	// ---------- Public API ----------
@@ -157,7 +164,7 @@ internal sealed class AlgoliaIndexExecutor
 		string? onlyCulture,
 		CancellationToken ct)
 	{
-		// culture → docs
+
 		var byCulture = new Dictionary<string, List<AlgoliaDocument>>(StringComparer.OrdinalIgnoreCase);
 
 		foreach (var node in nodes)
@@ -171,9 +178,26 @@ internal sealed class AlgoliaIndexExecutor
 
 			foreach (var cul in cultures)
 			{
-				var doc = MapAndEnrichForCulture(node, cul, baseIndexName, allowedProps);
+				if (string.IsNullOrWhiteSpace(cul)) continue;            
+
+				if (!node.IsPublished(cul)) continue;
+
+				AlgoliaDocument? doc = null;
+				try
+				{
+					doc = MapAndEnrichForCulture(node, cul, baseIndexName, allowedProps);
+				}
+				catch (Exception ex)
+				{
+					_logger.LogError(ex,
+						"Failed to map/enrich node {Id} for culture {Culture}", node.Id, cul);
+				}
 				if (doc == null) continue;
-				(byCulture.TryGetValue(cul, out var list) ? list : byCulture[cul] = new()).Add(doc);
+
+				if (!byCulture.TryGetValue(cul, out var list))
+					byCulture[cul] = list = new List<AlgoliaDocument>();
+				list.Add(doc);
+				
 			}
 		}
 
@@ -250,24 +274,17 @@ internal sealed class AlgoliaIndexExecutor
 			Data = new Dictionary<string, object>()
 		};
 
-		if (allowedProps is { Count: > 0 })
+		foreach (var alias in allowedProps)
 		{
-			foreach (var prop in c.Properties.Where(p => allowedProps.Contains(p.Alias)))
-			{
-				var isVariant = prop.PropertyType.Variations.VariesByCulture();
+			var prop = c.GetProperty(alias);
+			if (prop is null) continue;
 
-				var raw = isVariant
-					? c.Value(prop.Alias, culture)   // culture-specific
-					: c.Value(prop.Alias);           // invariant
+			var raw = ReadPropertyValue(c, prop, culture);
+			if (raw is null) continue;
 
-				if (raw is null) continue;
-
-				var ctx = new AlgoliaPropertyContext(c, prop, culture, baseIndexName);
-				var converted = ConvertProperty(ctx, raw);
-
-				if (converted is not null)
-					doc.Data[prop.Alias] = converted;
-			}
+			var ctx = new AlgoliaPropertyContext(c, prop, culture, baseIndexName);
+			var converted = ConvertProperty(ctx, raw);
+			if (converted is not null) doc.Data[alias] = converted;
 		}
 
 		return doc;
@@ -297,7 +314,7 @@ internal sealed class AlgoliaIndexExecutor
 
 	private object? ConvertProperty(AlgoliaPropertyContext ctx, object? raw)
 	{
-		object? value = raw;
+		var value = raw;
 		foreach (var c in _propConverters)
 		{
 			if (c.CanHandle(ctx))
@@ -305,4 +322,41 @@ internal sealed class AlgoliaIndexExecutor
 		}
 		return value;
 	}
+
+	private object? ReadPropertyValue(IPublishedContent content, IPublishedProperty prop, string? culture)
+	{
+		var isVariant = prop.PropertyType.Variations.VariesByCulture();
+		object? val;
+
+		if (isVariant)
+		{
+			using (PushVariation(culture))
+				val = content.Value(_publishedValueFallback, prop.Alias, culture: culture);
+
+			if (val is null)
+				val = prop.GetSourceValue(culture);
+		}
+		else
+		{
+			using (PushVariation(null))
+				val = content.Value(_publishedValueFallback, prop.Alias) ?? prop.GetSourceValue();
+		}
+
+		return val;
+	}
+
+	private sealed class VariationScope : IDisposable
+	{
+		private readonly IVariationContextAccessor _accessor;
+		private readonly VariationContext? _previous;
+		public VariationScope(IVariationContextAccessor accessor, string? culture)
+		{
+			_accessor = accessor;
+			_previous = accessor.VariationContext;
+			accessor.VariationContext = new VariationContext(culture);
+		}
+		public void Dispose() => _accessor.VariationContext = _previous;
+	}
+
+	private IDisposable PushVariation(string? culture) => new VariationScope(_variation, culture);
 }

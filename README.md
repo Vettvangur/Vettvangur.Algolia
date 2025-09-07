@@ -49,21 +49,6 @@ Services.AddVettvangurAlgolia();
 
 ## How it works
 
-### Architecture
-
-```mermaid
-graph TD
-  A[Editor action<br/>(Publish / Unpublish / Move / Delete)] --> B[Umbraco ContentService]
-  B --> C[[Content* Notifications]]
-  C --> D[AlgoliaNotifications<br/>(handlers)]
-  D -->|enqueue AlgoliaJob| E[IAlgoliaIndexService<br/>(Dispatcher)]
-  E --> F[[Bounded Channel Queue]]
-  F --> G[AlgoliaIndexWorker<br/>(BackgroundService)]
-  G -->|rehydrate| H[IUmbracoContextFactory<br/>Published cache]
-  G --> I[AlgoliaIndexExecutor]
-  I -->|Save/Delete| J[(Algolia indexes<br/>&lt;base&gt;_&lt;culture&gt;)]
-```
-
 ### Culture logic
 
 - **Published**: compute exact `(nodeId, culture)` pairs that were **published** in this operation (or all currently published when there’s no culture delta). Enqueue **upsert** for exactly those pairs, with a small **delay** (e.g. 10 s).

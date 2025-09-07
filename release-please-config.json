@@ -1,5 +1,4 @@
 {
-  "bootstrap-sha": "",
   "packages": {
     ".": {
       "package-name": "Vettvangur.Algolia",
@@ -8,7 +7,7 @@
       "extra-files": [
         {
           "type": "xml",
-          "path": "src/Vettvangur.Algolia/Vettvangur.Algolia.csproj",
+          "path": "Vettvangur.Algolia.csproj",
           "xpath": "/Project/PropertyGroup/Version"
         }
       ]

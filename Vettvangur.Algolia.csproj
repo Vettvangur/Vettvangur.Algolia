@@ -16,7 +16,7 @@
 		<PackageProjectUrl>https://github.com/Vettvangur/Vettvangur.Algolia</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/Vettvangur/Vettvangur.Algolia</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
-		<PackageReleaseNotes>v1.2.1: Content and Media converts return smaller object</PackageReleaseNotes>
+		<PackageReleaseNotes>Fix property variants</PackageReleaseNotes>
 		<Copyright>Copyright © 2025 Vettvangur</Copyright>
 
 		<!-- Icon & README -->

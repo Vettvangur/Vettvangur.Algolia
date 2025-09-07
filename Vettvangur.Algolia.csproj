@@ -9,14 +9,14 @@
 		<PackageId>Vettvangur.Algolia</PackageId>
 		<Title>Vettvangur.Algolia</Title>
 		<Description>Umbraco → Algolia indexer with per-culture indexes, background queue/worker, and coalesced updates.</Description>
-		<Version>1.3.0</Version>
+		<Version>1.3.1</Version>
 		<Authors>Vettvangur</Authors>
 		<PackageTags>umbraco;plugin;package;algolia;indexer;search</PackageTags>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
 		<PackageProjectUrl>https://github.com/Vettvangur/Vettvangur.Algolia</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/Vettvangur/Vettvangur.Algolia</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
-		<PackageReleaseNotes>Fix property variants</PackageReleaseNotes>
+		<PackageReleaseNotes>Fix property variants for non variants</PackageReleaseNotes>
 		<Copyright>Copyright © 2025 Vettvangur</Copyright>
 
 		<!-- Icon & README -->
@@ -41,7 +41,7 @@
 	<ItemGroup>
 		<PackageReference Include="Algolia.Search" Version="7.26.0"/>
 		<PackageReference Include="Umbraco.Cms.Core" Version="13.10.0"/>
-		<PackageReference Include="Umbraco.Cms.Web.BackOffice" Version="13.10.0"/> 
+		<PackageReference Include="Umbraco.Cms.Web.BackOffice" Version="13.10.0"/>
 		<PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All"/>
 	</ItemGroup>
 

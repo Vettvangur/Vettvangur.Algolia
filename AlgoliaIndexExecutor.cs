@@ -254,7 +254,12 @@ internal sealed class AlgoliaIndexExecutor
 		{
 			foreach (var prop in c.Properties.Where(p => allowedProps.Contains(p.Alias)))
 			{
-				var raw = c.Value(prop.Alias, culture);
+				var isVariant = prop.PropertyType.Variations.VariesByCulture();
+
+				var raw = isVariant
+					? c.Value(prop.Alias, culture)   // culture-specific
+					: c.Value(prop.Alias);           // invariant
+
 				if (raw is null) continue;
 
 				var ctx = new AlgoliaPropertyContext(c, prop, culture, baseIndexName);

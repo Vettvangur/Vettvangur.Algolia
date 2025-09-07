@@ -9,14 +9,14 @@
 		<PackageId>Vettvangur.Algolia</PackageId>
 		<Title>Vettvangur.Algolia</Title>
 		<Description>Umbraco → Algolia indexer with per-culture indexes, background queue/worker, and coalesced updates.</Description>
-		<Version>1.1.0</Version>
+		<Version>1.2.0</Version>
 		<Authors>Vettvangur</Authors>
 		<PackageTags>umbraco;plugin;package;algolia;indexer;search</PackageTags>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
 		<PackageProjectUrl>https://github.com/Vettvangur/Vettvangur.Algolia</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/Vettvangur/Vettvangur.Algolia</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
-		<PackageReleaseNotes>v1.1.0: Added Document Enricher, Use an enricher to add or tweak fields on the document that gets sent to Algolia; docs for IAlgoliaDocumentEnricher.</PackageReleaseNotes>
+		<PackageReleaseNotes>v1.2.0: Added Property Value Convert and media picker and content picker default converts..</PackageReleaseNotes>
 		<Copyright>Copyright © 2025 Vettvangur</Copyright>
 
 		<!-- Icon & README -->

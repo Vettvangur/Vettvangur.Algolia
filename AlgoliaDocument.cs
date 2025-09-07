@@ -1,5 +1,5 @@
 namespace Vettvangur.Algolia;
-internal sealed class AlgoliaDocument
+public sealed class AlgoliaDocument
 {
 	public required string ObjectID { get; set; }
 	public required int NodeId { get; set; }

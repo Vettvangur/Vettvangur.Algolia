@@ -13,17 +13,22 @@ internal sealed class AlgoliaIndexExecutor
 	private readonly IUmbracoContextFactory _umbracoContextFactory;
 	private readonly ISearchClient _client;
 	private readonly AlgoliaConfig _config;
+	private readonly IReadOnlyList<IAlgoliaDocumentEnricher> _enrichers;
 
 	public AlgoliaIndexExecutor(
 		ILogger<AlgoliaIndexExecutor> logger,
 		IUmbracoContextFactory umbracoContextFactory,
 		ISearchClient client,
-		IOptions<AlgoliaConfig> config)
+		IOptions<AlgoliaConfig> config,
+		IEnumerable<IAlgoliaDocumentEnricher>? enrichers = null)
 	{
 		_logger = logger;
 		_umbracoContextFactory = umbracoContextFactory;
 		_client = client;
 		_config = config.Value;
+		_enrichers = (enrichers ?? Array.Empty<IAlgoliaDocumentEnricher>())
+			  .OrderBy(e => e.Order)
+			  .ToList();
 	}
 
 	// ---------- Public API ----------
@@ -162,12 +167,9 @@ internal sealed class AlgoliaIndexExecutor
 
 			foreach (var cul in cultures)
 			{
-				var doc = MapForCulture(node, cul, allowedProps);
-				if (doc is null) continue;
-
-				if (!byCulture.TryGetValue(cul, out var list))
-					byCulture[cul] = list = new List<AlgoliaDocument>();
-				list.Add(doc);
+				var doc = MapAndEnrichForCulture(node, cul, baseIndexName, allowedProps);
+				if (doc == null) continue;
+				(byCulture.TryGetValue(cul, out var list) ? list : byCulture[cul] = new()).Add(doc);
 			}
 		}
 
@@ -252,6 +254,28 @@ internal sealed class AlgoliaIndexExecutor
 				if (v != null) doc.Data[p.Alias] = v;
 			}
 		}
+
+		return doc;
+	}
+
+	private AlgoliaDocument? MapAndEnrichForCulture(
+	IPublishedContent content,
+	string? culture,
+	string baseIndexName,
+	HashSet<string>? allowedProps)
+	{
+		var doc = MapForCulture(content, culture, allowedProps);
+		if (doc is null || _enrichers.Count == 0) return doc;
+
+		var ctx = new AlgoliaEnrichmentContext(
+			Content: content,
+			Culture: culture,
+			BaseIndexName: baseIndexName,
+			AllowedPropertyAliases: allowedProps
+		);
+
+		foreach (var enricher in _enrichers)
+			enricher.Enrich(doc, ctx);
 
 		return doc;
 	}

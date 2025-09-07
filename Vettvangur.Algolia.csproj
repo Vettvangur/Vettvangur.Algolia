@@ -1,15 +1,55 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-  </PropertyGroup>
+	<PropertyGroup>
+		<TargetFramework>net8.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
 
-  <ItemGroup>
-    <PackageReference Include="Algolia.Search" Version="7.26.0" />
-    <PackageReference Include="Umbraco.Cms.Core" Version="13.10.0" />
-    <PackageReference Include="Umbraco.Cms.Web.BackOffice" Version="13.10.0" />
-  </ItemGroup>
+		<!-- NuGet metadata -->
+		<PackageId>Vettvangur.Algolia</PackageId>
+		<Title>Vettvangur.Algolia</Title>
+		<Description>Umbraco → Algolia indexer with per-culture indexes, background queue/worker, and coalesced updates.</Description>
+		<Version>1.1.0</Version>
+		<Authors>Vettvangur</Authors>
+		<PackageTags>umbraco;plugin;package;algolia;indexer;search</PackageTags>
+		<PackageLicenseExpression>MIT</PackageLicenseExpression>
+		<PackageProjectUrl>https://github.com/Vettvangur/Vettvangur.Algolia</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/Vettvangur/Vettvangur.Algolia</RepositoryUrl>
+		<RepositoryType>git</RepositoryType>
+		<PackageReleaseNotes>v1.1.0: Added Document Enricher, Use an enricher to add or tweak fields on the document that gets sent to Algolia; docs for IAlgoliaDocumentEnricher.</PackageReleaseNotes>
+		<Copyright>Copyright © 2025 Vettvangur</Copyright>
+
+		<!-- Icon & README -->
+		<PackageIcon>vv_logo.png</PackageIcon>
+		<PackageReadmeFile>README.md</PackageReadmeFile>
+
+		<!-- Symbols & SourceLink -->
+		<IncludeSymbols>true</IncludeSymbols>
+		<SymbolPackageFormat>snupkg</SymbolPackageFormat>
+		<PublishRepositoryUrl>true</PublishRepositoryUrl>
+		<EmbedUntrackedSources>true</EmbedUntrackedSources>
+
+		<!-- Build / docs -->
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
+		<RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+
+		<!-- Optional QoL -->
+		<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+		<!-- <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild> -->
+	</PropertyGroup>
+
+	<ItemGroup>
+		<PackageReference Include="Algolia.Search" Version="7.26.0" />
+		<PackageReference Include="Umbraco.Cms.Core" Version="13.10.0" />
+		<PackageReference Include="Umbraco.Cms.Web.BackOffice" Version="13.10.0" /> 
+		<PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+	</ItemGroup>
+
+	<!-- Pack the icon & README into the nupkg -->
+	<ItemGroup>
+		<None Include="vv_logo.png" Pack="true" PackagePath="" />
+		<None Include="README.md" Pack="true" PackagePath="" />
+		<None Include="CHANGELOG.md" Pack="true" PackagePath="" />
+	</ItemGroup>
 
 </Project>

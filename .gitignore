@@ -1,0 +1,65 @@
+# ---- Core .NET / Visual Studio ----
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.sln.ide
+*.rsuser
+
+# Build results
+bin/
+obj/
+[Bb]uild/
+[Ll]ogs/
+artifacts/
+
+# Test results / coverage
+TestResults/
+*.coverage
+*.coveragexml
+coverage*/
+coverage*.json
+coverage*.xml
+coverage*.info
+
+# Visual Studio working folder
+.vs/
+
+# Rider / ReSharper
+.idea/
+*.sln.iml
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.DotSettings.user
+
+# VS Code (optional: keep if you share workspace settings)
+.vscode/
+
+# NuGet
+*.nupkg
+*.snupkg
+packages/
+# If using packages.lock.json (recommended with RestorePackagesWithLockFile=true), DO NOT ignore it.
+# packages.lock.json
+
+# Source Link / Symbols
+*.pdb
+
+# Logs / temp
+*.log
+*.tlog
+*.tmp
+*.temp
+*.bak
+*.orig
+
+# OS junk
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Icon?
+desktop.ini
+
+# Node (in case you have sample UI or docs tooling)
+node_modules/
+*.tsbuildinfo

@@ -1,0 +1,15 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Algolia.Search" Version="7.26.0" />
+    <PackageReference Include="Umbraco.Cms.Core" Version="13.10.0" />
+    <PackageReference Include="Umbraco.Cms.Web.BackOffice" Version="13.10.0" />
+  </ItemGroup>
+
+</Project>

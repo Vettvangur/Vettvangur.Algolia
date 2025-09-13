@@ -1,4 +1,4 @@
-using Umbraco.Cms.Core.Models.PublishedContent;
+using Umbraco.Cms.Core.Models;
 
 namespace Vettvangur.Algolia;
 public interface IAlgoliaPropertyValueConverter
@@ -12,8 +12,8 @@ public interface IAlgoliaPropertyValueConverter
 }
 
 public sealed record AlgoliaPropertyContext(
-	IPublishedContent Content,
-	IPublishedProperty Property,
+	IContent Content,
+	IProperty Property,
 	string? Culture,
 	string BaseIndexName
 );

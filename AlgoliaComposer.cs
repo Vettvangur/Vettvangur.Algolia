@@ -8,9 +8,10 @@ internal sealed class AlgoliaComposer : IComposer
 	public void Compose(IUmbracoBuilder builder)
 	{
 		builder
-			.AddNotificationAsyncHandler<ContentPublishedNotification, AlgoliaNotifications>()
-			.AddNotificationAsyncHandler<ContentUnpublishingNotification, AlgoliaNotifications>()
-			.AddNotificationAsyncHandler<ContentMovedNotification, AlgoliaNotifications>()
-			.AddNotificationAsyncHandler<ContentMovedToRecycleBinNotification, AlgoliaNotifications>();
+			.AddNotificationAsyncHandler<ContentCacheRefresherNotification, AlgoliaNotifications>();
+			//.AddNotificationAsyncHandler<ContentPublishedNotification, AlgoliaNotifications>()
+			//.AddNotificationAsyncHandler<ContentUnpublishingNotification, AlgoliaNotifications>()
+			//.AddNotificationAsyncHandler<ContentMovedNotification, AlgoliaNotifications>()
+			//.AddNotificationAsyncHandler<ContentMovedToRecycleBinNotification, AlgoliaNotifications>();
 	}
 }

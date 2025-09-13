@@ -14,41 +14,40 @@ public sealed class ContentPickerConverter : IAlgoliaPropertyValueConverter
 
 	public bool CanHandle(AlgoliaPropertyContext ctx)
 	{
-		var editor = ctx.Property.PropertyType.EditorAlias;
+		var editor = ctx.Property.PropertyType.PropertyEditorAlias;
 		return editor.Equals("Umbraco.ContentPicker", StringComparison.OrdinalIgnoreCase)
 			|| editor.Equals("Umbraco.MultiNodeTreePicker", StringComparison.OrdinalIgnoreCase);
 	}
 
-	public object? Convert(AlgoliaPropertyContext ctx, object? source)
+	public object? Convert(AlgoliaPropertyContext ctx, object? value)
 	{
-		// Already resolved by Umbraco
-		if (source is IPublishedContent one)
-			return Shape(one, ctx.Culture);
-
-		if (source is IEnumerable<IPublishedContent> many)
-			return many.Select(x => Shape(x, ctx.Culture)).ToList();
-
 		using var cref = _ctxFactory.EnsureUmbracoContext();
 		var cache = cref.UmbracoContext?.Content;
 
+		// Single item already resolved
+		if (value is IPublishedContent one)
+			return Shape(one, ctx.Culture);
+
+		// Multiple already resolved
+		if (value is IEnumerable<IPublishedContent> many)
+			return many.Select(x => Shape(x, ctx.Culture)).ToArray();
+
 		// UDI / GuidUDI instances
-		if (source is Udi udi)
+		if (value is Udi udi)
 			return Shape(cache?.GetById(udi), ctx.Culture);
 
-		if (source is GuidUdi gudi)
+		if (value is GuidUdi gudi)
 			return Shape(cache?.GetById(gudi), ctx.Culture);
 
-		// Strings
-		if (source is string s)
+		// Strings (UDI, GUID, comma/semicolon/whitespace-delimited)
+		if (value is string s)
 		{
 			if (TryParseGuidUdiString(s, out var parsed))
 				return Shape(cache?.GetById(parsed), ctx.Culture);
 
-			// plain GUID? assume content ("document")
 			if (Guid.TryParse(s, out var g))
 				return Shape(cache?.GetById(new GuidUdi(Constants.UdiEntityType.Document, g)), ctx.Culture);
 
-			// comma/whitespace-delimited list of UDIs/GUIDs
 			var parts = s.Split(new[] { ',', ';', '\n', '\r', ' ' }, StringSplitOptions.RemoveEmptyEntries);
 			if (parts.Length > 1)
 			{
@@ -67,22 +66,26 @@ public sealed class ContentPickerConverter : IAlgoliaPropertyValueConverter
 						if (c != null) list.Add(Shape(c, ctx.Culture));
 					}
 				}
-				if (list.Count > 0) return list;
+
+				// Return empty array if nothing resolved (keeps schema stable)
+				return list.Count > 0 ? list.ToArray() : Array.Empty<object>();
 			}
 		}
 
-		// IEnumerable<...> of Udis / strings
-		if (source is IEnumerable<Udi> udis)
+		// IEnumerable<...> of UDIs / strings
+		if (value is IEnumerable<Udi> udis)
 			return udis.Select(x => cache?.GetById(x))
-					   .Where(x => x != null)!
-					   .Select(x => Shape(x!, ctx.Culture)).ToList();
+								.Where(x => x != null)!
+								.Select(x => Shape(x!, ctx.Culture))
+								.ToArray();
 
-		if (source is IEnumerable<GuidUdi> gudis)
+		if (value is IEnumerable<GuidUdi> gudis)
 			return gudis.Select(x => cache?.GetById(x))
-						.Where(x => x != null)!
-						.Select(x => Shape(x!, ctx.Culture)).ToList();
+								 .Where(x => x != null)!
+								 .Select(x => Shape(x!, ctx.Culture))
+								 .ToArray();
 
-		if (source is IEnumerable<string> sList)
+		if (value is IEnumerable<string> sList)
 		{
 			var list = new List<Dictionary<string, object?>>();
 			foreach (var us in sList)
@@ -98,11 +101,10 @@ public sealed class ContentPickerConverter : IAlgoliaPropertyValueConverter
 					if (c != null) list.Add(Shape(c, ctx.Culture));
 				}
 			}
-			if (list.Count > 0) return list;
+			return list.Count > 0 ? list.ToArray() : Array.Empty<object>();
 		}
 
-		// Unknown shape → pass through (will serialize if possible)
-		return source;
+		return value;
 	}
 
 	private static Dictionary<string, object?> Shape(IPublishedContent? c, string? culture)
@@ -120,12 +122,11 @@ public sealed class ContentPickerConverter : IAlgoliaPropertyValueConverter
 		if (string.IsNullOrWhiteSpace(value)) return false;
 		if (!value.StartsWith("umb://", StringComparison.OrdinalIgnoreCase)) return false;
 
-		// umb://document/xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 		var rest = value.Substring("umb://".Length);
 		var slash = rest.IndexOf('/');
 		if (slash <= 0 || slash >= rest.Length - 1) return false;
 
-		var entityType = rest.Substring(0, slash);         // e.g. "document"
+		var entityType = rest.Substring(0, slash);
 		var guidPart = rest.Substring(slash + 1);
 
 		if (!Guid.TryParse(guidPart, out var guid)) return false;

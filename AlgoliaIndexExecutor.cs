@@ -1,36 +1,41 @@
 using Algolia.Search.Clients;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Umbraco.Cms.Core.Configuration.UmbracoSettings;
-using Umbraco.Cms.Core.Models.PublishedContent;
+using Umbraco.Cms.Core.Models;
+using Umbraco.Cms.Core.PropertyEditors;
+using Umbraco.Cms.Core.Routing;
+using Umbraco.Cms.Core.Services;
 using Umbraco.Cms.Core.Web;
 using Umbraco.Extensions;
-
 namespace Vettvangur.Algolia;
 
 internal sealed class AlgoliaIndexExecutor
 {
 	private readonly ILogger<AlgoliaIndexExecutor> _logger;
-	private readonly IUmbracoContextFactory _umbracoContextFactory;
 	private readonly ISearchClient _client;
 	private readonly AlgoliaConfig _config;
 	private readonly IReadOnlyList<IAlgoliaDocumentEnricher> _enrichers;
 	private readonly IReadOnlyList<IAlgoliaPropertyValueConverter> _propConverters;
-	private readonly IPublishedValueFallback _publishedValueFallback;
-	private readonly IVariationContextAccessor _variation;
+	private readonly IContentService _contentService;
+	private readonly ILocalizationService _languageService;
+	private readonly PropertyEditorCollection _propertyEditorsCollection;
+	private readonly IContentTypeService _contentTypeService;
+	private readonly IPublishedUrlProvider _urlProvider;
+	private readonly IUmbracoContextFactory _umbracoContextFactory;
 	public AlgoliaIndexExecutor(
 		ILogger<AlgoliaIndexExecutor> logger,
-		IUmbracoContextFactory umbracoContextFactory,
 		ISearchClient client,
 		IOptions<AlgoliaConfig> config,
-		IPublishedValueFallback publishedValueFallback,
-		IVariationContextAccessor variation,
+		IContentService contentService,
+		ILocalizationService languageService,
+		PropertyEditorCollection propertyEditorsCollection,
+		IContentTypeService contentTypeService,
+		IPublishedUrlProvider urlProvider,
+		IUmbracoContextFactory umbracoContextFactory,
 		IEnumerable<IAlgoliaDocumentEnricher>? enrichers = null,
-		IEnumerable<IAlgoliaPropertyValueConverter>? propConverters = null
-)
+		IEnumerable<IAlgoliaPropertyValueConverter>? propConverters = null)
 	{
 		_logger = logger;
-		_umbracoContextFactory = umbracoContextFactory;
 		_client = client;
 		_config = config.Value;
 		_enrichers = (enrichers ?? Array.Empty<IAlgoliaDocumentEnricher>())
@@ -38,228 +43,246 @@ internal sealed class AlgoliaIndexExecutor
 			  .ToList();
 		_propConverters = (propConverters ?? Array.Empty<IAlgoliaPropertyValueConverter>())
 						  .OrderBy(c => c.Order).ToList();
-		_publishedValueFallback = publishedValueFallback;
-		_variation = variation;
+		_contentService = contentService;
+		_languageService = languageService;
+		_propertyEditorsCollection = propertyEditorsCollection;
+		_contentTypeService = contentTypeService;
+		_urlProvider = urlProvider;
+		_umbracoContextFactory = umbracoContextFactory;
 	}
 
 	// ---------- Public API ----------
 
-	public async Task RebuildAllAsync(CancellationToken ct = default)
+	public async Task RebuildAsync(string? indexName = null, CancellationToken ct = default)
 	{
-		_logger.LogInformation("Starting full Algolia index rebuild...");
+		var indexes = string.IsNullOrEmpty(indexName) ? _config.Indexes : _config.Indexes.Where(x => x.IndexName.InvariantEquals(indexName));
 
-		using var cref = _umbracoContextFactory.EnsureUmbracoContext();
-		var cache = cref.UmbracoContext?.Content;
-		if (cache is null) return;
-
-		foreach (var spec in BuildSpecs())
-		{
-			// Gather all nodes matching this index' content types (deduped)
-			var nodesById = new Dictionary<int, IPublishedContent>();
-
-			foreach (var alias in spec.Aliases)
-			{
-				var ctype = cache.GetContentType(alias);
-				if (ctype is null) continue;
-
-				var nodes = cache.GetByContentType(ctype);
-				if (nodes is null) continue;
-
-				foreach (var n in nodes) nodesById[n.Id] = n;
-			}
-
-			if (nodesById.Count == 0) continue;
-
-			await UpsertForIndexAsync(
-				baseIndexName: spec.IndexName,
-				nodes: nodesById.Values,
-				propsByAlias: spec.PropsByAlias,
-				onlyCulture: null,
-				ct: ct);
-
-			_logger.LogInformation("Rebuilt Algolia index '{IndexName}' with {NodeCount} nodes.",
-				spec.IndexName, nodesById.Count);
-		}
-	}
-
-	public async Task UpsertAsync(IEnumerable<IPublishedContent> nodes, CancellationToken ct = default)
-	{
-		var list = nodes?.Where(n => n != null).DistinctBy(n => n.Id).ToList() ?? new();
-		if (list.Count == 0) return;
-
-		using var _ = _umbracoContextFactory.EnsureUmbracoContext(); // ensure Url()/Value() work
-
-		foreach (var spec in BuildSpecs())
-		{
-			var filtered = FilterForIndex(list, spec.Aliases);
-			if (filtered.Count == 0) continue;
-
-			await UpsertForIndexAsync(
-				baseIndexName: spec.IndexName,
-				nodes: filtered,
-				propsByAlias: spec.PropsByAlias,
-				onlyCulture: null,
-				ct: ct);
-		}
-	}
-
-	public async Task UpsertByCultureAsync(IEnumerable<IPublishedContent> nodes, string culture, CancellationToken ct = default)
-	{
-		var list = nodes?.Where(n => n != null).DistinctBy(n => n.Id).ToList() ?? new();
-		if (list.Count == 0 || string.IsNullOrWhiteSpace(culture)) return;
-
-		using var _ = _umbracoContextFactory.EnsureUmbracoContext();
-
-		foreach (var spec in BuildSpecs())
-		{
-			var filtered = FilterForIndex(list, spec.Aliases);
-			if (filtered.Count == 0) continue;
-
-			await UpsertForIndexAsync(
-				baseIndexName: spec.IndexName,
-				nodes: filtered,
-				propsByAlias: spec.PropsByAlias,
-				onlyCulture: culture,
-				ct: ct);
-		}
-	}
-
-	public async Task DeleteAsync(IEnumerable<string> nodeKeys, string culture, CancellationToken ct = default)
-	{
-		if (string.IsNullOrWhiteSpace(culture)) return;
-
-		var ids = nodeKeys?
-			.Where(k => !string.IsNullOrWhiteSpace(k))
+		var allCultures = _languageService
+			.GetAllLanguages()
+			.Select(l => l.IsoCode)
 			.Distinct(StringComparer.OrdinalIgnoreCase)
-			.ToList() ?? new();
+			.ToArray();
 
-		if (ids.Count == 0) return;
+		var contentTypeDictionary = _contentTypeService.GetAll().ToDictionary(x => x.Key);
 
-		var cul = culture.ToLowerInvariant();
-
-		foreach (var idx in _config.Indexes)
+		foreach (var index in _config.Indexes)
 		{
-			if (string.IsNullOrWhiteSpace(idx.IndexName)) continue;
+			if (string.IsNullOrWhiteSpace(index.IndexName)) continue;
 
-			var indexName = $"{idx.IndexName}_{cul}";
-			_logger.LogDebug("Delete {Count} objects from {IndexName}", ids.Count, indexName);
-
-			await _client.DeleteObjectsAsync(
-				indexName: indexName,
-				objectIDs: ids,
-				batchSize: 1000,
-				waitForTasks: false,
-				options: null,
-				cancellationToken: ct);
-		}
-	}
-
-	// ---------- Internals ----------
-
-	/// Unifies the "all cultures" and "specific culture" upsert paths.
-	private async Task UpsertForIndexAsync(
-		string baseIndexName,
-		IEnumerable<IPublishedContent> nodes,
-		IDictionary<string, HashSet<string>> propsByAlias,
-		string? onlyCulture,
-		CancellationToken ct)
-	{
-
-		var byCulture = new Dictionary<string, List<AlgoliaDocument>>(StringComparer.OrdinalIgnoreCase);
-
-		foreach (var node in nodes)
-		{
-			propsByAlias.TryGetValue(node.ContentType.Alias, out var allowedProps);
-
-			// When onlyCulture is provided, process just that culture; otherwise, all node cultures.
-			var cultures = onlyCulture != null
-				? new[] { onlyCulture }
-				: (node.Cultures?.Keys ?? Enumerable.Empty<string>());
-
-			foreach (var cul in cultures)
-			{
-				if (string.IsNullOrWhiteSpace(cul)) continue;            
-
-				if (!node.IsPublished(cul)) continue;
-
-				AlgoliaDocument? doc = null;
-				try
-				{
-					doc = MapAndEnrichForCulture(node, cul, baseIndexName, allowedProps);
-				}
-				catch (Exception ex)
-				{
-					_logger.LogError(ex,
-						"Failed to map/enrich node {Id} for culture {Culture}", node.Id, cul);
-				}
-				if (doc == null) continue;
-
-				if (!byCulture.TryGetValue(cul, out var list))
-					byCulture[cul] = list = new List<AlgoliaDocument>();
-				list.Add(doc);
-				
-			}
-		}
-
-		// Save per culture
-		foreach (var (culture, docs) in byCulture)
-		{
-			if (docs.Count == 0) continue;
-
-			var indexName = $"{baseIndexName}_{culture.ToLowerInvariant()}";
-			_logger.LogDebug("Save {Count} objects to {IndexName}", docs.Count, indexName);
-
-			await _client.SaveObjectsAsync(
-				indexName: indexName,
-				objects: docs,
-				batchSize: 1000,
-				waitForTasks: false,
-				options: null,
-				cancellationToken: ct);
-		}
-	}
-
-	private static List<IPublishedContent> FilterForIndex(IEnumerable<IPublishedContent> nodes, HashSet<string> aliases)
-		=> nodes.Where(n => aliases.Contains(n.ContentType.Alias))
-				.DistinctBy(n => n.Id)
-				.ToList();
-
-	private IEnumerable<IndexSpec> BuildSpecs()
-	{
-		foreach (var idx in _config.Indexes)
-		{
-			if (string.IsNullOrWhiteSpace(idx.IndexName)) continue;
-
-			var aliases = (idx.ContentTypes ?? Enumerable.Empty<AlgoliaIndexContentType>())
+			var typeAliases = (index.ContentTypes ?? Enumerable.Empty<AlgoliaIndexContentType>())
 				.Select(ct => ct.Alias)
 				.Where(a => !string.IsNullOrWhiteSpace(a))
 				.ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-			if (aliases.Count == 0) continue;
+			foreach (var alias in typeAliases)
+			{
+				using var ctx = _umbracoContextFactory.EnsureUmbracoContext();
+				var contentType = ctx.UmbracoContext.Content?.GetContentType(alias);
 
-			var propsByAlias = (idx.ContentTypes ?? Enumerable.Empty<AlgoliaIndexContentType>())
-				.GroupBy(ct => ct.Alias, StringComparer.OrdinalIgnoreCase)
-				.ToDictionary(
-					g => g.Key,
-					g => g.SelectMany(x => x.Properties ?? Enumerable.Empty<string>())
-						  .ToHashSet(StringComparer.OrdinalIgnoreCase),
-					StringComparer.OrdinalIgnoreCase);
+				if (contentType is null) continue;
 
-			yield return new IndexSpec(idx.IndexName, aliases, propsByAlias);
+				var entitiesForIndex = _contentService.GetPagedOfType(contentType.Id, 0, int.MaxValue, out _, null).Where(x => !x.Trashed);
+
+				_logger.LogInformation("Building index for {ContentType} with {Count} items", alias, entitiesForIndex.Count());
+
+				var (entitiesToUpsertByCulture, entitiesToDeleteByCulture)
+					= BuildPerCultureBuckets(entitiesForIndex, allCultures);
+
+				foreach (var (culture, list) in entitiesToUpsertByCulture)
+				{
+					var distinct = list.DistinctBy(x => x.Id).ToList();
+					if (distinct.Count == 0) continue;
+
+					await UpsertByNodesByCultureAsync(distinct, culture, index, allCultures, contentTypeDictionary, ct);
+				}
+
+				foreach (var (culture, keySet) in entitiesToDeleteByCulture)
+				{
+					if (keySet.Count == 0) continue;
+
+					await DeleteAsync(keySet, culture, index, ct);
+				}
+
+				_logger.LogInformation("Finished Building index for {ContentType}", alias);
+
+			}
+
 		}
 	}
 
-	private sealed record IndexSpec(
-		string IndexName,
-		HashSet<string> Aliases,
-		IDictionary<string, HashSet<string>> PropsByAlias);
-
-	private AlgoliaDocument? MapForCulture(IPublishedContent c, string? culture, string baseIndexName, HashSet<string>? allowedProps = null)
+	public async Task UpdateByIdsAsync(int[] ids, CancellationToken ct = default)
 	{
-		if (!c.IsPublished(culture)) return null;
+		if (ids == null || ids.Length == 0) return;
 
-		var name = culture == null ? c.Name : c.Name(culture) ?? "";
-		var url = culture == null ? c.Url() : c.Url(culture);
+		var entities = _contentService.GetByIds(ids).ToList();
+		if (entities.Count == 0) return;
+
+		var allCultures = _languageService
+			.GetAllLanguages()
+			.Select(l => l.IsoCode)
+			.Distinct(StringComparer.OrdinalIgnoreCase)
+			.ToArray();
+
+		var contentTypeDictionary = _contentTypeService.GetAll().ToDictionary(x => x.Key);
+
+		foreach (var index in _config.Indexes)
+		{
+			if (string.IsNullOrWhiteSpace(index.IndexName)) continue;
+
+			var typeAliases = (index.ContentTypes ?? Enumerable.Empty<AlgoliaIndexContentType>())
+				.Select(ct => ct.Alias)
+				.Where(a => !string.IsNullOrWhiteSpace(a))
+				.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+			if (typeAliases.Count == 0) continue;
+
+			var entitiesForIndex = entities
+				.Where(e => typeAliases.Contains(e.ContentType.Alias))
+				.DistinctBy(e => e.Id)
+				.ToList();
+
+			if (entitiesForIndex.Count == 0) continue;
+
+			var (entitiesToUpsertByCulture, entitiesToDeleteByCulture)
+				= BuildPerCultureBuckets(entitiesForIndex, allCultures);
+
+			foreach (var (culture, list) in entitiesToUpsertByCulture)
+			{
+				var distinct = list.DistinctBy(x => x.Id).ToList();
+				if (distinct.Count == 0) continue;
+
+				await UpsertByNodesByCultureAsync(distinct, culture, index, allCultures, contentTypeDictionary,  ct);
+			}
+
+			foreach (var (culture, keySet) in entitiesToDeleteByCulture)
+			{
+				if (keySet.Count == 0) continue;
+
+				await DeleteAsync(keySet, culture, index, ct);
+			}
+		}
+	}
+
+	private static (
+		Dictionary<string, List<IContent>> UpsertsByCulture,
+		Dictionary<string, HashSet<string>> DeletesByCulture
+	) BuildPerCultureBuckets(IEnumerable<IContent> entitiesForIndex, IEnumerable<string> allCultures)
+	{
+		var upserts = new Dictionary<string, List<IContent>>(StringComparer.OrdinalIgnoreCase);
+		var deletes = new Dictionary<string, HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+
+		foreach (var e in entitiesForIndex)
+		{
+			if (e.ContentType.Variations.VariesByCulture())
+			{
+				var cultures = (e.CultureInfos?.Values.Select(ci => ci.Culture) ?? Enumerable.Empty<string>())
+							   .Where(c => !string.IsNullOrWhiteSpace(c));
+
+				foreach (var cul in cultures)
+				{
+					if (e.IsCulturePublished(cul))
+						AddList(upserts, cul, e);
+					else
+						AddSet(deletes, cul, e.Key.ToString());
+				}
+			}
+			else
+			{
+				foreach (var cul in allCultures)
+				{
+					if (string.IsNullOrWhiteSpace(cul)) continue;
+
+					if (e.Published)
+						AddList(upserts, cul, e);
+					else
+						AddSet(deletes, cul, e.Key.ToString());
+				}
+			}
+		}
+
+		return (upserts, deletes);
+
+		// --- local helpers ---
+		static void AddList(Dictionary<string, List<IContent>> dict, string culture, IContent item)
+		{
+			if (!dict.TryGetValue(culture, out var list))
+				dict[culture] = list = new List<IContent>();
+			list.Add(item);
+		}
+
+		static void AddSet(Dictionary<string, HashSet<string>> dict, string culture, string key)
+		{
+			if (!dict.TryGetValue(culture, out var set))
+				dict[culture] = set = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+			set.Add(key);
+		}
+	}
+
+	private async Task UpsertByNodesByCultureAsync(IEnumerable<IContent> nodes, string culture, AlgoliaIndex index, IEnumerable<string> availableCultures, IDictionary<Guid, IContentType> contentTypeDictionary, CancellationToken ct)
+	{
+		var docs = new List<AlgoliaDocument>();
+
+		foreach (var node in nodes)
+		{
+			var allowedProps = index.ContentTypes?
+				.FirstOrDefault(ct => ct.Alias.Equals(node.ContentType.Alias, StringComparison.OrdinalIgnoreCase))
+				?.Properties
+				?.ToHashSet(StringComparer.OrdinalIgnoreCase) ?? [];
+
+			AlgoliaDocument? doc = null;
+			try
+			{
+				doc = MapAndEnrichForCulture(node, culture, index.IndexName, allowedProps, availableCultures, contentTypeDictionary);
+			}
+			catch (Exception ex)
+			{
+				_logger.LogError(ex,
+					"Failed to map/enrich node {Id} for culture {Culture}", node.Id, culture);
+			}
+			if (doc == null) continue;
+			docs.Add(doc);
+		}
+
+		if (docs.Count == 0) return;
+
+		var indexName = $"{index.IndexName}_{culture.ToLowerInvariant()}";
+		_logger.LogDebug("Save {Count} objects to {IndexName}", docs.Count, indexName);
+
+		await _client.SaveObjectsAsync(
+			indexName: indexName,
+			objects: docs,
+			batchSize: 1000,
+			waitForTasks: false,
+			options: null,
+			cancellationToken: ct);
+	}
+
+	public async Task DeleteAsync(IEnumerable<string> nodeKeys, string culture, AlgoliaIndex index, CancellationToken ct = default)
+	{
+		if (string.IsNullOrWhiteSpace(culture)) return;
+
+		var indexName = $"{index.IndexName}_{culture}";
+
+		_logger.LogDebug("Delete {Count} objects from {IndexName}", nodeKeys.Count(), indexName);
+
+		await _client.DeleteObjectsAsync(
+			indexName: indexName,
+			objectIDs: nodeKeys,
+			batchSize: 1000,
+			waitForTasks: false,
+			options: null,
+			cancellationToken: ct);
+	}
+
+	private AlgoliaDocument? MapDocument(IContent c, string? culture, string baseIndexName, HashSet<string> allowedProps, IEnumerable<string> availableCultures, IDictionary<Guid, IContentType> contentTypeDictionary)
+	{
+		using var contextReference = _umbracoContextFactory.EnsureUmbracoContext();
+
+		var name = culture == null ? c.Name : c.GetCultureName(culture) ?? "";
+
+		if (string.IsNullOrEmpty(name)) return null;
+
+		var url = culture == null ? _urlProvider.GetUrl(c.Id) : _urlProvider.GetUrl(c.Id, culture: culture);
 
 		var doc = new AlgoliaDocument
 		{
@@ -270,20 +293,24 @@ internal sealed class AlgoliaIndexExecutor
 			Name = name,
 			UpdateDate = c.UpdateDate,
 			CreateDate = c.CreateDate,
-			Level = c.Level,
 			Data = new Dictionary<string, object>()
 		};
 
 		foreach (var alias in allowedProps)
 		{
-			var prop = c.GetProperty(alias);
+			var prop = c.Properties.FirstOrDefault(x => x.Alias == alias);
+
 			if (prop is null) continue;
 
-			var raw = ReadPropertyValue(c, prop, culture);
-			if (raw is null) continue;
+			var propCulture = prop.PropertyType.Variations.VariesByCulture()
+				? culture
+				: null;
 
-			var ctx = new AlgoliaPropertyContext(c, prop, culture, baseIndexName);
-			var converted = ConvertProperty(ctx, raw);
+			var value = ReadPropertyValue(prop, propCulture, availableCultures, contentTypeDictionary);
+
+			var ctx = new AlgoliaPropertyContext(c, prop, propCulture, baseIndexName);
+			var converted = ConvertProperty(ctx, value);
+
 			if (converted is not null) doc.Data[alias] = converted;
 		}
 
@@ -291,12 +318,14 @@ internal sealed class AlgoliaIndexExecutor
 	}
 
 	private AlgoliaDocument? MapAndEnrichForCulture(
-		IPublishedContent content,
+		IContent content,
 		string? culture,
 		string baseIndexName,
-		HashSet<string>? allowedProps)
+		HashSet<string> allowedProps,
+		IEnumerable<string> availableCultures, 
+		IDictionary<Guid, IContentType> contentTypeDictionary)
 	{
-		var doc = MapForCulture(content, culture, baseIndexName, allowedProps);
+		var doc = MapDocument(content, culture, baseIndexName, allowedProps, availableCultures, contentTypeDictionary);
 		if (doc is null || _enrichers.Count == 0) return doc;
 
 		var ctx = new AlgoliaEnrichmentContext(
@@ -312,9 +341,8 @@ internal sealed class AlgoliaIndexExecutor
 		return doc;
 	}
 
-	private object? ConvertProperty(AlgoliaPropertyContext ctx, object? raw)
+	private object? ConvertProperty(AlgoliaPropertyContext ctx, object? value)
 	{
-		var value = raw;
 		foreach (var c in _propConverters)
 		{
 			if (c.CanHandle(ctx))
@@ -322,41 +350,28 @@ internal sealed class AlgoliaIndexExecutor
 		}
 		return value;
 	}
-
-	private object? ReadPropertyValue(IPublishedContent content, IPublishedProperty prop, string? culture)
+	private object? ReadPropertyValue(IProperty property, string? culture, IEnumerable<string> availableCultures, IDictionary<Guid, IContentType> contentTypeDictionary)
 	{
-		var isVariant = prop.PropertyType.Variations.VariesByCulture();
-		object? val;
-
-		if (isVariant)
+		var propertyEditor = _propertyEditorsCollection.FirstOrDefault(p => p.Alias == property.PropertyType.PropertyEditorAlias);
+		if (propertyEditor == null)
 		{
-			using (PushVariation(culture))
-				val = content.Value(_publishedValueFallback, prop.Alias, culture: culture);
-
-			if (val is null)
-				val = prop.GetSourceValue(culture);
-		}
-		else
-		{
-			using (PushVariation(null))
-				val = content.Value(_publishedValueFallback, prop.Alias) ?? prop.GetSourceValue();
+			return default;
 		}
 
-		return val;
+		var indexValues  = propertyEditor.PropertyIndexValueFactory.GetIndexValues(
+			property,
+			culture,
+			null,
+			true,
+			availableCultures,
+			contentTypeDictionary);
+
+		if (indexValues == null || !indexValues.Any()) return new KeyValuePair<string, object>(property.Alias, string.Empty);
+
+		var indexValue = indexValues.First();
+
+		var returnValue = indexValue.Value.FirstOrDefault()?.ToString() ?? "";
+
+		return returnValue;
 	}
-
-	private sealed class VariationScope : IDisposable
-	{
-		private readonly IVariationContextAccessor _accessor;
-		private readonly VariationContext? _previous;
-		public VariationScope(IVariationContextAccessor accessor, string? culture)
-		{
-			_accessor = accessor;
-			_previous = accessor.VariationContext;
-			accessor.VariationContext = new VariationContext(culture);
-		}
-		public void Dispose() => _accessor.VariationContext = _previous;
-	}
-
-	private IDisposable PushVariation(string? culture) => new VariationScope(_variation, culture);
 }

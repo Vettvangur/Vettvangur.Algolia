@@ -1,8 +1,8 @@
-using Umbraco.Cms.Core.Models.PublishedContent;
+using Umbraco.Cms.Core.Models;
 
 namespace Vettvangur.Algolia;
 public sealed record AlgoliaEnrichmentContext(
-	IPublishedContent Content,
+	IContent Content,
 	string? Culture,
 	string BaseIndexName,
 	IReadOnlySet<string>? AllowedPropertyAliases

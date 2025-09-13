@@ -33,7 +33,7 @@ public static class AlgoliaServiceCollectionExtensions
 
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IAlgoliaPropertyValueConverter, MediaPickerConverter>());
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IAlgoliaPropertyValueConverter, ContentPickerConverter>());
-
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IAlgoliaPropertyValueConverter, RemoveUdiStringsConverter>());
 		return services;
 	}
 }

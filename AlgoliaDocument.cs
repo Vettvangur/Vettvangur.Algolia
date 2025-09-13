@@ -6,10 +6,9 @@ public sealed class AlgoliaDocument
 	public required string ContentTypeAlias { get; set; } = string.Empty;
 	public required string Url { get; set; } = string.Empty;
 	public required string Name { get; set; } = string.Empty;
-	public required int Level { get; set; }
 	public required DateTime UpdateDate { get; set; }
-	public long UpdateDateUnixMs => new DateTimeOffset(UpdateDate).ToUnixTimeMilliseconds();
+	public long UpdateDateUnixSecond => new DateTimeOffset(UpdateDate).ToUnixTimeSeconds();
 	public required DateTime CreateDate { get; set; }
-	public long CreateDateUnixMs => new DateTimeOffset(CreateDate).ToUnixTimeMilliseconds();
+	public long CreateDateUnixSecond => new DateTimeOffset(CreateDate).ToUnixTimeSeconds();
 	public IDictionary<string, object> Data { get; set; }
 }

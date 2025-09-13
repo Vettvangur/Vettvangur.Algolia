@@ -10,11 +10,11 @@ public class AlgoliaController : UmbracoAuthorizedApiController
 		_algoliaIndexService = algoliaIndexService;
 	}
 
-	public async Task<IActionResult> RebuildIndexesAsync()
+	public async Task<IActionResult> RebuildIndexesAsync([FromQuery] string? indexName = null, CancellationToken ct = default)
 	{
 		try
 		{
-			await _algoliaIndexService.RebuildAllAsync();
+			await _algoliaIndexService.RebuildAsync(indexName, ct);
 			return Ok(new { message = "Algolia indexes rebuild initiated." });
 		}
 		catch (Exception ex)

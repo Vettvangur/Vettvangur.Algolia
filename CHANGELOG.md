@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0](https://github.com/Vettvangur/Vettvangur.Algolia/compare/Vettvangur.Algolia-v1.3.2...Vettvangur.Algolia-v1.4.0) (2025-09-13)
+
+
+### Features
+
+* Moved from IpublishedContent to IContent, Used PropertyIndexValueFactory to get index values. Refactored flow to handle these changes. ContentCacheRefresherNotification handler used instead of publish,unpublish ([5849b7c](https://github.com/Vettvangur/Vettvangur.Algolia/commit/5849b7c374eab140e949bf1d7233b1802ba217be))
+
+
+### Bug Fixes
+
+* update readme ([24440f7](https://github.com/Vettvangur/Vettvangur.Algolia/commit/24440f7638f2eb1652c44e0de194d6c5077daa12))
+
 ## [1.3.2](https://github.com/Vettvangur/Vettvangur.Algolia/compare/Vettvangur.Algolia-v1.3.1...Vettvangur.Algolia-v1.3.2) (2025-09-07)
 
 

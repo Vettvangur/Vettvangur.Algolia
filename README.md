@@ -1,17 +1,16 @@
 # Vettvangur.Algolia
 
-Umbraco → Algolia indexer with **per-culture indexes**, a **background queue/worker**, and **coalesced** updates.  
-Built for **Umbraco 13+** and **Algolia .NET v8+**.
+Umbraco → Algolia indexer with per-culture indexes, a background queue/worker, and config-driven field selection.
+Built for Umbraco 13+ and the Algolia .NET client (v8+).
 
 ## Highlights
 
-- 🔤 **Per-culture indexes**: writes to `<baseIndex>_<culture>` (e.g. `SearchIndex_en-us`).
-- 🧩 **Config-driven**: choose which content types & which properties to index.
-- 🧵 **Background worker**: batched, resilient indexing via a bounded channel (no blocking the request thread).
-- ⏱️ **Per-job delay**: defer publish upserts by a few seconds so the published cache is correct—no polling/retries needed.
-- 🧼 **Culture-aware deletes**: remove just the cultures that were unpublished.
-- 🔁 **Full rebuild**: reindex configured content types across all cultures.
-- 🧰 **Algolia v7 API**: `SaveObjectsAsync` / `DeleteObjectsAsync` with safe chunking.
+🔤 Per-culture indexes — writes to <baseIndex>_<culture> (e.g. SearchIndex_en-US).
+🧩 Config-driven — pick which document types and property aliases are indexed.
+🧵 Background queue/worker — enqueue from notifications without blocking request or cache refresher threads.
+🚦 Bounded channel — back-pressure handled internally; service uses non-blocking TryEnqueue + safe fallback.
+🔁 Rebuild — rebuild all or a single base index by name.
+🧰 Clean mapping pipeline — property values pulled via Umbraco’s PropertyIndexValueFactory, then shaped by optional property converters and document enrichers.
 
 ---
 
@@ -51,11 +50,33 @@ Services.AddVettvangurAlgolia();
 
 ### Culture logic
 
-- **Published**: compute exact `(nodeId, culture)` pairs that were **published** in this operation (or all currently published when there’s no culture delta). Enqueue **upsert** for exactly those pairs, with a small **delay** (e.g. 10 s).
-- **Unpublishing**: delete for the **targeted cultures** (or all available cultures on full unpublish).
-- **Deletes / Recycle bin**: delete for all cultures the item had.
+Umbraco cache refresher → IAlgoliaIndexService (non-blocking) → Queue (bounded Channel)
+    → AlgoliaIndexWorker (BackgroundService) → AlgoliaIndexExecutor → Algolia
 
-The worker coalesces jobs for **1.5s**, respects each job’s **ProcessAfterUtc**, then rehydrates nodes and writes to `<baseIndex>_<culture>`.
+Notifications: We listen to ContentCacheRefresherNotification. For refresh/branch refresh events,
+we gather node IDs and call IAlgoliaIndexService.UpdateByIdsAsync(...) with CancellationToken.None (fire-and-forget).
+
+Service: Uses TryEnqueue first (non-blocking). If the channel is full, it schedules a background write so the caller still returns immediately.
+
+Queue: Channel<AlgoliaJob> with capacity 10,000, single reader, multiple writers, FullMode=Wait.
+
+Worker: Drains whatever’s available and processes immediately (no artificial delays or coalescing windows).
+
+Executor:
+
+Loads IContent by ID via IContentService.
+
+Builds per-culture buckets:
+
+Variant doctypes → use CultureInfos and IsCulturePublished(culture).
+
+Invariant doctypes → fan-out to all site languages from ILocalizationService.
+
+For each culture bucket:
+
+Upsert: map to AlgoliaDocument, run enrichers, and SaveObjectsAsync in chunks (1,000).
+
+Delete: use Key (Guid) per culture and DeleteObjectsAsync.
 
 ---
 
@@ -64,27 +85,13 @@ The worker coalesces jobs for **1.5s**, respects each job’s **ProcessAfterUtc*
 ```csharp
 public interface IAlgoliaIndexService
 {
-    // Upsert a set of nodes; worker determines live cultures at processing time.
-    Task UpsertAsync(IEnumerable<IPublishedContent> nodes, TimeSpan? delay = null, CancellationToken ct = default);
+    /// Enqueue an update for a set of nodes (IDs). Non-blocking.
+    Task UpdateByIdsAsync(int[] nodeId, CancellationToken ct = default);
 
-    // Upsert precise (nodeId, culture) pairs; recommended for publish notifications.
-    Task UpsertAsync(IEnumerable<(int nodeId, string culture)> nodeCultures, TimeSpan? delay = null, CancellationToken ct = default);
-
-    // Delete by objectID (node.Key.ToString()) from all base indexes for the culture.
-    Task DeleteAsync(IEnumerable<string> nodeKeys, string culture, CancellationToken ct = default);
-
-    // Full rebuild over configured content types.
-    Task RebuildAllAsync(CancellationToken ct = default);
+    /// Enqueue a rebuild for all indexes, or a single base index (by name). Non-blocking.
+    Task RebuildAsync(string? indexName = null, CancellationToken ct = default);
 }
 ```
-
-## Worker & queue behavior
-
-- **Channel capacity**: 10,000 (bounded; back-pressure via `Wait` when full).
-- **Coalesce window**: 1.5 s (gathers many small changes into one batch).
-- **Per-job delay**: jobs carry `ProcessAfterUtc`; worker holds them until due.
-- **Retries**: executor calls are wrapped with exponential backoff (max 5 attempts).
-- **Chunking**: writes to Algolia in chunks of 1000 objects.
 
 ---
 
@@ -93,6 +100,8 @@ public interface IAlgoliaIndexService
 - **No worker logs?** Ensure `builder.Services.AddVettvangurAlgolia()` runs.
 
 ---
+
+# Extensibility
 
 ## Algolia Document Enricher
 
@@ -173,7 +182,7 @@ Converters run in ascending `Order` (lower first). If multiple converters modify
 
 ---
 
-### Create your own converter (3 steps)
+## Create your own converter
 
 1) **Implement the interface**
 ```csharp

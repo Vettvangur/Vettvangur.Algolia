@@ -26,6 +26,7 @@ Built for Umbraco 13+ and the Algolia .NET client (v8+).
     "ApplicationId": "ALGOLIA_APP_ID",
     "AdminApiKey": "ALGOLIA_ADMIN_API_KEY",
 	"SearchApiKey": "ALGOLIA_SEARCH_API_KEY",
+    "EnforcePublisherOnly": true, // default: true → only Publisher servers push to Algolia
     "Indexes": [
       {
         "IndexName": "SearchIndex",

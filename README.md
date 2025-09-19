@@ -25,6 +25,7 @@ Built for Umbraco 13+ and the Algolia .NET client (v8+).
   "Algolia": {
     "ApplicationId": "ALGOLIA_APP_ID",
     "AdminApiKey": "ALGOLIA_ADMIN_API_KEY",
+	"SearchApiKey": "ALGOLIA_SEARCH_API_KEY",
     "Indexes": [
       {
         "IndexName": "SearchIndex",

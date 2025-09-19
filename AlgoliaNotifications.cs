@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Umbraco.Cms.Core.Cache;
 using Umbraco.Cms.Core.Events;
 using Umbraco.Cms.Core.Notifications;
@@ -13,14 +14,17 @@ internal sealed class AlgoliaNotifications :
 	private readonly IAlgoliaIndexService _indexer;
 	private readonly ILogger<AlgoliaNotifications> _logger;
 	private readonly IServerRoleAccessor _serverRoleAccessor;
+	private readonly AlgoliaConfig _config;
 	public AlgoliaNotifications(
 		IAlgoliaIndexService indexer,
 		ILogger<AlgoliaNotifications> logger,
-		IServerRoleAccessor serverRoleAccessor)
+		IServerRoleAccessor serverRoleAccessor,
+		IOptions<AlgoliaConfig> config)
 	{
 		_indexer = indexer;
 		_logger = logger;
 		_serverRoleAccessor = serverRoleAccessor;
+		_config = config.Value;
 	}
 
 	public Task HandleAsync(ContentCacheRefresherNotification notification, CancellationToken _)
@@ -28,12 +32,15 @@ internal sealed class AlgoliaNotifications :
 		if (notification.MessageObject is not ContentCacheRefresher.JsonPayload[] payloads)
 			return Task.CompletedTask;
 
-		switch (_serverRoleAccessor.CurrentServerRole)
+		if (_config.EnforcePublisherOnly)
 		{
-			case ServerRole.Subscriber:
-			case ServerRole.Unknown:
-				_logger.LogInformation("Algolia indexing task will not run on this server role.");
-				return Task.CompletedTask;
+			switch (_serverRoleAccessor.CurrentServerRole)
+			{
+				case ServerRole.Subscriber:
+				case ServerRole.Unknown:
+					_logger.LogInformation("Algolia indexing task will not run on this server role.");
+					return Task.CompletedTask;
+			}
 		}
 
 		var nodeIds = payloads

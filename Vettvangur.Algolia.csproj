@@ -16,7 +16,7 @@
 		<PackageProjectUrl>https://github.com/Vettvangur/Vettvangur.Algolia</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/Vettvangur/Vettvangur.Algolia</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
-		<PackageReleaseNotes>Fix property variants for non variants</PackageReleaseNotes>
+		<PackageReleaseNotes>Add to configuration EnforcePublisherOnly, its true by default so only master server will send packages.</PackageReleaseNotes>
 		<Copyright>Copyright © 2025 Vettvangur</Copyright>
 
 		<!-- Icon & README -->

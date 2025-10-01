@@ -26,14 +26,14 @@ public static class AlgoliaServiceCollectionExtensions
 		services.TryAddSingleton<AlgoliaIndexQueue>();
 		services.TryAddSingleton<IAlgoliaIndexQueue>(sp => sp.GetRequiredService<AlgoliaIndexQueue>());
 
-		services.TryAddSingleton<AlgoliaIndexExecutor>();
+		services.TryAddScoped<AlgoliaIndexExecutor>();
 		services.AddHostedService<AlgoliaIndexWorker>();
 
 		services.TryAddSingleton<IAlgoliaIndexService, AlgoliaIndexService>();
 
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IAlgoliaPropertyValueConverter, MediaPickerConverter>());
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IAlgoliaPropertyValueConverter, ContentPickerConverter>());
-		services.TryAddEnumerable(ServiceDescriptor.Singleton<IAlgoliaPropertyValueConverter, RemoveUdiStringsConverter>());
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IAlgoliaPropertyValueConverter, RemoveUdiStringsFromRTEConverter>());
 		return services;
 	}
 }

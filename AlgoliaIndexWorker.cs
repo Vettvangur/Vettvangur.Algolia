@@ -1,3 +1,4 @@
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -6,20 +7,20 @@ namespace Vettvangur.Algolia;
 internal sealed class AlgoliaIndexWorker : BackgroundService
 {
 	private readonly ILogger<AlgoliaIndexWorker> _logger;
-	private readonly AlgoliaIndexQueue _queue;
-	private readonly AlgoliaIndexExecutor _executor;
+	private readonly IAlgoliaIndexQueue _queue;
+	private readonly IServiceScopeFactory _scopeFactory;
 
 	private readonly HashSet<int> _pendingRefresh = new();
 	private bool _pendingRebuild;
 
 	public AlgoliaIndexWorker(
 		ILogger<AlgoliaIndexWorker> logger,
-		AlgoliaIndexQueue queue,
-		AlgoliaIndexExecutor executor)
+		IAlgoliaIndexQueue queue,
+		IServiceScopeFactory scopeFactory)
 	{
 		_logger = logger;
 		_queue = queue;
-		_executor = executor;
+		_scopeFactory = scopeFactory;
 	}
 
 	protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -37,7 +38,10 @@ internal sealed class AlgoliaIndexWorker : BackgroundService
 				while (_queue.Reader.TryRead(out var job))
 					Accumulate(job);
 
-				await ProcessReadyWorkAsync(stoppingToken);
+				using var scope = _scopeFactory.CreateScope();
+				var executor = scope.ServiceProvider.GetRequiredService<AlgoliaIndexExecutor>();
+
+				await ProcessReadyWorkAsync(executor, stoppingToken);
 			}
 			catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { }
 			catch (Exception ex)
@@ -69,14 +73,15 @@ internal sealed class AlgoliaIndexWorker : BackgroundService
 		}
 	}
 
-	private async Task ProcessReadyWorkAsync(CancellationToken ct)
+	private async Task ProcessReadyWorkAsync(AlgoliaIndexExecutor executor, CancellationToken ct)
 	{
 		// Rebuild
 		if (_pendingRebuild)
 		{
 			_pendingRefresh.Clear();
 			_pendingRebuild = false;
-			await _executor.RebuildAsync(null, ct);
+
+			await executor.RebuildAsync(null, ct);
 			return;
 		}
 
@@ -86,7 +91,7 @@ internal sealed class AlgoliaIndexWorker : BackgroundService
 			var ids = _pendingRefresh.ToArray();
 			_pendingRefresh.Clear();
 
-			await _executor.UpdateByIdsAsync(ids, ct);
+			await executor.UpdateByIdsAsync(ids, ct);
 		}
 	}
 

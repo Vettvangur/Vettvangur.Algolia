@@ -35,16 +35,7 @@ internal sealed class AlgoliaIndexService : IAlgoliaIndexService
 
 		var job = new AlgoliaJob(AlgoliaJobType.UpdateByIds, nodeId);
 
-		// Fast, non-blocking attempt
-		if (_queue.TryEnqueue(job))
-			return Task.CompletedTask;
-
-		// Channel is full: enqueue in background so the caller returns immediately
-		_ = Task.Run(async () =>
-		{
-			try { await _queue.EnqueueAsync(job, ct: CancellationToken.None); }
-			catch (Exception ex) { _logger.LogError(ex, "Failed to enqueue UpdateByIds job."); }
-		});
+		_queue.Enqueue(job);
 
 		return Task.CompletedTask;
 	}
@@ -53,14 +44,7 @@ internal sealed class AlgoliaIndexService : IAlgoliaIndexService
 	{
 		var job = new AlgoliaJob(AlgoliaJobType.Rebuild, indexName: indexName);
 
-		if (_queue.TryEnqueue(job))
-			return Task.CompletedTask;
-
-		_ = Task.Run(async () =>
-		{
-			try { await _queue.EnqueueAsync(job, ct: CancellationToken.None); }
-			catch (Exception ex) { _logger.LogError(ex, "Failed to enqueue Rebuild job."); }
-		});
+		_queue.Enqueue(job);
 
 		return Task.CompletedTask;
 	}

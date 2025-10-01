@@ -2,11 +2,12 @@ using System.Text.RegularExpressions;
 
 namespace Vettvangur.Algolia.Converters;
 
-public sealed class RemoveUdiStringsConverter : IAlgoliaPropertyValueConverter
+public sealed class RemoveUdiStringsFromRTEConverter : IAlgoliaPropertyValueConverter
 {
 	public int Order => int.MaxValue; // run very late
 
-	public bool CanHandle(AlgoliaPropertyContext ctx) => true;
+	public bool CanHandle(AlgoliaPropertyContext ctx)
+		=> string.Equals(ctx.Property.PropertyType.PropertyEditorAlias, "Umbraco.TinyMCE", StringComparison.OrdinalIgnoreCase);
 
 	public object? Convert(AlgoliaPropertyContext ctx, object? source)
 	{

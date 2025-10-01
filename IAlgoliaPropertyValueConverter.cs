@@ -14,6 +14,7 @@ public interface IAlgoliaPropertyValueConverter
 public sealed record AlgoliaPropertyContext(
 	IContent Content,
 	IProperty Property,
-	string? Culture,
+	string? PropCulture,
+	string? NodeCulture,
 	string BaseIndexName
 );

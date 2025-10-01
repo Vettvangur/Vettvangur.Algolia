@@ -1,4 +1,5 @@
 using Algolia.Search.Clients;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Umbraco.Cms.Core.Models;
@@ -6,6 +7,8 @@ using Umbraco.Cms.Core.PropertyEditors;
 using Umbraco.Cms.Core.Routing;
 using Umbraco.Cms.Core.Services;
 using Umbraco.Cms.Core.Web;
+using Umbraco.Cms.Infrastructure.Persistence.Querying;
+using Umbraco.Cms.Infrastructure.Scoping;
 using Umbraco.Extensions;
 namespace Vettvangur.Algolia;
 
@@ -22,6 +25,9 @@ internal sealed class AlgoliaIndexExecutor
 	private readonly IContentTypeService _contentTypeService;
 	private readonly IPublishedUrlProvider _urlProvider;
 	private readonly IUmbracoContextFactory _umbracoContextFactory;
+	private readonly IScopeProvider _scopeProvider;
+	private readonly IMemoryCache _cache;
+
 	public AlgoliaIndexExecutor(
 		ILogger<AlgoliaIndexExecutor> logger,
 		ISearchClient client,
@@ -32,6 +38,8 @@ internal sealed class AlgoliaIndexExecutor
 		IContentTypeService contentTypeService,
 		IPublishedUrlProvider urlProvider,
 		IUmbracoContextFactory umbracoContextFactory,
+		IScopeProvider scopeProvider,
+		IMemoryCache cache,
 		IEnumerable<IAlgoliaDocumentEnricher>? enrichers = null,
 		IEnumerable<IAlgoliaPropertyValueConverter>? propConverters = null)
 	{
@@ -49,6 +57,8 @@ internal sealed class AlgoliaIndexExecutor
 		_contentTypeService = contentTypeService;
 		_urlProvider = urlProvider;
 		_umbracoContextFactory = umbracoContextFactory;
+		_scopeProvider = scopeProvider;
+		_cache = cache;
 	}
 
 	// ---------- Public API ----------
@@ -81,7 +91,8 @@ internal sealed class AlgoliaIndexExecutor
 
 				if (contentType is null) continue;
 
-				var entitiesForIndex = _contentService.GetPagedOfType(contentType.Id, 0, int.MaxValue, out _, null).Where(x => !x.Trashed);
+				var entitiesForIndex = _contentService.GetPagedOfType(contentType.Id, 0, int.MaxValue, out _, new Query<IContent>(_scopeProvider.SqlContext)
+						  .Where(x => !x.Trashed));
 
 				_logger.LogInformation("Building index for {ContentType} with {Count} items", alias, entitiesForIndex.Count());
 
@@ -114,16 +125,12 @@ internal sealed class AlgoliaIndexExecutor
 	{
 		if (ids == null || ids.Length == 0) return;
 
-		var entities = _contentService.GetByIds(ids).ToList();
+		var entities = _contentService.GetByIds(ids).Where(x => !x.Trashed).ToList();
 		if (entities.Count == 0) return;
 
-		var allCultures = _languageService
-			.GetAllLanguages()
-			.Select(l => l.IsoCode)
-			.Distinct(StringComparer.OrdinalIgnoreCase)
-			.ToArray();
+		var allCultures = await GetAllCulturesAsync();
 
-		var contentTypeDictionary = _contentTypeService.GetAll().ToDictionary(x => x.Key);
+		var contentTypeDictionary = await GetContentTypesAsync();
 
 		foreach (var index in _config.Indexes)
 		{
@@ -248,11 +255,11 @@ internal sealed class AlgoliaIndexExecutor
 		var indexName = $"{index.IndexName}_{culture.ToLowerInvariant()}";
 		_logger.LogDebug("Save {Count} objects to {IndexName}", docs.Count, indexName);
 
-		await _client.SaveObjectsAsync(
+		var resp = await _client.SaveObjectsAsync(
 			indexName: indexName,
 			objects: docs,
 			batchSize: 1000,
-			waitForTasks: false,
+			waitForTasks: true,
 			options: null,
 			cancellationToken: ct);
 	}
@@ -308,7 +315,7 @@ internal sealed class AlgoliaIndexExecutor
 
 			var value = ReadPropertyValue(prop, propCulture, availableCultures, contentTypeDictionary);
 
-			var ctx = new AlgoliaPropertyContext(c, prop, propCulture, baseIndexName);
+			var ctx = new AlgoliaPropertyContext(c, prop, propCulture, culture, baseIndexName);
 			var converted = ConvertProperty(ctx, value);
 
 			if (converted is not null) doc.Data[alias] = converted;
@@ -373,5 +380,34 @@ internal sealed class AlgoliaIndexExecutor
 		var returnValue = indexValue.Value.FirstOrDefault()?.ToString() ?? "";
 
 		return returnValue;
+	}
+	private Task<string[]> GetAllCulturesAsync()
+	{
+		return _cache.GetOrCreateAsync("umbraco:languages:all", entry =>
+		{
+			entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5);
+
+			var cultures = _languageService
+				.GetAllLanguages()
+				.Select(l => l.IsoCode)
+				.Distinct(StringComparer.OrdinalIgnoreCase)
+				.ToArray();
+
+			return Task.FromResult(cultures);
+		});
+	}
+
+	private Task<Dictionary<Guid, IContentType>> GetContentTypesAsync()
+	{
+		return _cache.GetOrCreateAsync("umbraco:contenttypes:byKey", entry =>
+		{
+			entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5);
+
+			var dict = _contentTypeService
+				.GetAll()
+				.ToDictionary(x => x.Key);
+
+			return Task.FromResult(dict);
+		});
 	}
 }

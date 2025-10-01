@@ -27,7 +27,7 @@ internal sealed class AlgoliaNotifications :
 		_config = config.Value;
 	}
 
-	public Task HandleAsync(ContentCacheRefresherNotification notification, CancellationToken _)
+	public Task HandleAsync(ContentCacheRefresherNotification notification, CancellationToken ct)
 	{
 		if (notification.MessageObject is not ContentCacheRefresher.JsonPayload[] payloads)
 			return Task.CompletedTask;
@@ -51,7 +51,7 @@ internal sealed class AlgoliaNotifications :
 
 		if (nodeIds.Length == 0) return Task.CompletedTask;
 
-		_indexer.UpdateByIdsAsync(nodeIds.ToArray(), CancellationToken.None);
+		_ = _indexer.UpdateByIdsAsync(nodeIds, CancellationToken.None);
 
 		return Task.CompletedTask;
 	}

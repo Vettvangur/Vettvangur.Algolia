@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Umbraco.Cms.Core.Models.PublishedContent;
 using Umbraco.Cms.Core.Web;
+using Umbraco.Extensions;
 
 namespace Vettvangur.Algolia.Converters;
 
@@ -25,7 +26,7 @@ public sealed class MediaPickerConverter : IAlgoliaPropertyValueConverter
 
 		var list = new List<Dictionary<string, object?>>();
 
-		var value = ctx.Property.GetValue(ctx.Culture)?.ToString();
+		var value = ctx.Property.GetValue(ctx.PropCulture)?.ToString();
 
 		if (string.IsNullOrEmpty(value)) return null;
 
@@ -51,7 +52,8 @@ public sealed class MediaPickerConverter : IAlgoliaPropertyValueConverter
 		? new Dictionary<string, object?>()
 		: new Dictionary<string, object?>
 		{
-			["name"] = c.Name
+			["name"] = c.Name,
+			["url"] = c.Url()
 		};
 
 	public class MediaItem

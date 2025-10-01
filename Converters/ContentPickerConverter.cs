@@ -26,27 +26,27 @@ public sealed class ContentPickerConverter : IAlgoliaPropertyValueConverter
 
 		// Single item already resolved
 		if (value is IPublishedContent one)
-			return Shape(one, ctx.Culture);
+			return Shape(one, ctx.NodeCulture);
 
 		// Multiple already resolved
 		if (value is IEnumerable<IPublishedContent> many)
-			return many.Select(x => Shape(x, ctx.Culture)).ToArray();
+			return many.Select(x => Shape(x, ctx.NodeCulture)).ToArray();
 
 		// UDI / GuidUDI instances
 		if (value is Udi udi)
-			return Shape(cache?.GetById(udi), ctx.Culture);
+			return Shape(cache?.GetById(udi), ctx.NodeCulture);
 
 		if (value is GuidUdi gudi)
-			return Shape(cache?.GetById(gudi), ctx.Culture);
+			return Shape(cache?.GetById(gudi), ctx.NodeCulture);
 
 		// Strings (UDI, GUID, comma/semicolon/whitespace-delimited)
 		if (value is string s)
 		{
 			if (TryParseGuidUdiString(s, out var parsed))
-				return Shape(cache?.GetById(parsed), ctx.Culture);
+				return Shape(cache?.GetById(parsed), ctx.NodeCulture);
 
 			if (Guid.TryParse(s, out var g))
-				return Shape(cache?.GetById(new GuidUdi(Constants.UdiEntityType.Document, g)), ctx.Culture);
+				return Shape(cache?.GetById(new GuidUdi(Constants.UdiEntityType.Document, g)), ctx.NodeCulture);
 
 			var parts = s.Split(new[] { ',', ';', '\n', '\r', ' ' }, StringSplitOptions.RemoveEmptyEntries);
 			if (parts.Length > 1)
@@ -57,13 +57,19 @@ public sealed class ContentPickerConverter : IAlgoliaPropertyValueConverter
 					if (TryParseGuidUdiString(part, out var pu))
 					{
 						var c = cache?.GetById(pu);
-						if (c != null) list.Add(Shape(c, ctx.Culture));
+
+						var shape = Shape(c, ctx.NodeCulture);
+
+						if (shape != null) list.Add(shape);
 						continue;
 					}
 					if (Guid.TryParse(part, out var pg))
 					{
 						var c = cache?.GetById(new GuidUdi(Constants.UdiEntityType.Document, pg));
-						if (c != null) list.Add(Shape(c, ctx.Culture));
+
+						var shape = Shape(c, ctx.NodeCulture);
+
+						if (shape != null) list.Add(shape);
 					}
 				}
 
@@ -76,13 +82,15 @@ public sealed class ContentPickerConverter : IAlgoliaPropertyValueConverter
 		if (value is IEnumerable<Udi> udis)
 			return udis.Select(x => cache?.GetById(x))
 								.Where(x => x != null)!
-								.Select(x => Shape(x!, ctx.Culture))
+								.Select(x => Shape(x, ctx.NodeCulture))
+								.Where(x => x != null)
 								.ToArray();
 
 		if (value is IEnumerable<GuidUdi> gudis)
 			return gudis.Select(x => cache?.GetById(x))
 								 .Where(x => x != null)!
-								 .Select(x => Shape(x!, ctx.Culture))
+								 .Select(x => Shape(x, ctx.NodeCulture))
+								 .Where(x => x != null)
 								 .ToArray();
 
 		if (value is IEnumerable<string> sList)
@@ -93,12 +101,18 @@ public sealed class ContentPickerConverter : IAlgoliaPropertyValueConverter
 				if (TryParseGuidUdiString(us, out var pu))
 				{
 					var c = cache?.GetById(pu);
-					if (c != null) list.Add(Shape(c, ctx.Culture));
+
+					var shape = Shape(c, ctx.NodeCulture);
+
+					if (shape != null) list.Add(shape);
 				}
 				else if (Guid.TryParse(us, out var g))
 				{
 					var c = cache?.GetById(new GuidUdi(Constants.UdiEntityType.Document, g));
-					if (c != null) list.Add(Shape(c, ctx.Culture));
+
+					var shape = Shape(c, ctx.NodeCulture);
+
+					if (shape != null) list.Add(shape);
 				}
 			}
 			return list.Count > 0 ? list.ToArray() : Array.Empty<object>();
@@ -107,13 +121,20 @@ public sealed class ContentPickerConverter : IAlgoliaPropertyValueConverter
 		return value;
 	}
 
-	private static Dictionary<string, object?> Shape(IPublishedContent? c, string? culture)
-		=> c == null
-			? new Dictionary<string, object?>()
-			: new Dictionary<string, object?>
-			{
-				["name"] = culture == null ? c.Name : c.Name(culture)
-			};
+	private static Dictionary<string, object?>? Shape(IPublishedContent? c, string? culture)
+	{
+		if (c == null) { return null; }
+
+		var name = culture == null ? c.Name : c.IsInvariantOrHasCulture(culture) ? c.Name(culture) : c.Name;
+
+		if (string.IsNullOrEmpty(name)) { return null; }
+
+		return new Dictionary<string, object?>
+		{
+			["name"] = name
+		};
+	}
+	
 
 	// Parses "umb://{entityType}/{guid}" → GuidUdi
 	private static bool TryParseGuidUdiString(string value, out GuidUdi parsed)

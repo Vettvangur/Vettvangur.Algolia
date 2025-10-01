@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.1](https://github.com/Vettvangur/Vettvangur.Algolia/compare/Vettvangur.Algolia-v1.6.0...Vettvangur.Algolia-v1.6.1) (2025-10-01)
+
+
+### Bug Fixes
+
+* Update worker to fire and forget. udiString Converter only target RTE. Caching added. ([9c07719](https://github.com/Vettvangur/Vettvangur.Algolia/commit/9c0771915cada26fcf85c4276bcc58d41ba1d15a))
+
 ## [1.6.0](https://github.com/Vettvangur/Vettvangur.Algolia/compare/Vettvangur.Algolia-v1.5.0...Vettvangur.Algolia-v1.6.0) (2025-09-19)
 
 

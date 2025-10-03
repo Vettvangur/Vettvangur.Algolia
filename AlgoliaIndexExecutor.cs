@@ -65,15 +65,15 @@ internal sealed class AlgoliaIndexExecutor
 
 	public async Task RebuildAsync(string? indexName = null, CancellationToken ct = default)
 	{
+		_logger.LogInformation(indexName is null
+			? "Starting full index rebuild"
+			: "Starting index rebuild for {IndexName}", indexName);
+
 		var indexes = string.IsNullOrEmpty(indexName) ? _config.Indexes : _config.Indexes.Where(x => x.IndexName.InvariantEquals(indexName));
 
-		var allCultures = _languageService
-			.GetAllLanguages()
-			.Select(l => l.IsoCode)
-			.Distinct(StringComparer.OrdinalIgnoreCase)
-			.ToArray();
+		var allCultures = await GetAllCulturesAsync();
 
-		var contentTypeDictionary = _contentTypeService.GetAll().ToDictionary(x => x.Key);
+		var contentTypeDictionary = await GetContentTypesAsync();
 
 		foreach (var index in _config.Indexes)
 		{
@@ -101,24 +101,26 @@ internal sealed class AlgoliaIndexExecutor
 
 				foreach (var (culture, list) in entitiesToUpsertByCulture)
 				{
-					var distinct = list.DistinctBy(x => x.Id).ToList();
-					if (distinct.Count == 0) continue;
+					var indexNameWithCulture = $"{index.IndexName}_{culture.ToLowerInvariant()}";
 
-					await UpsertByNodesByCultureAsync(distinct, culture, index, allCultures, contentTypeDictionary, ct);
+					var documents = list.Select(x => MapDocument(x, culture, index.IndexName, allowedProps: typeAliases, allCultures, contentTypeDictionary));
+
+					await _client.ReplaceAllObjectsAsync(
+						indexName: indexNameWithCulture,
+						objects: documents,
+						batchSize: 1000,
+						cancellationToken: ct
+					);
+
 				}
-
-				foreach (var (culture, keySet) in entitiesToDeleteByCulture)
-				{
-					if (keySet.Count == 0) continue;
-
-					await DeleteAsync(keySet, culture, index, ct);
-				}
-
-				_logger.LogInformation("Finished Building index for {ContentType}", alias);
 
 			}
 
 		}
+
+		_logger.LogInformation(indexName is null
+			? "Full index rebuild complete"
+			: "Index rebuild for {IndexName} complete", indexName);
 	}
 
 	public async Task UpdateByIdsAsync(int[] ids, CancellationToken ct = default)
@@ -381,9 +383,9 @@ internal sealed class AlgoliaIndexExecutor
 
 		return returnValue;
 	}
-	private Task<string[]> GetAllCulturesAsync()
+	private async Task<string[]> GetAllCulturesAsync()
 	{
-		return _cache.GetOrCreateAsync("umbraco:languages:all", entry =>
+		return await _cache.GetOrCreateAsync("umbraco:languages:all", entry =>
 		{
 			entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5);
 
@@ -393,8 +395,8 @@ internal sealed class AlgoliaIndexExecutor
 				.Distinct(StringComparer.OrdinalIgnoreCase)
 				.ToArray();
 
-			return Task.FromResult(cultures);
-		});
+			return Task.FromResult<string[]?>(cultures);
+		}) ?? Array.Empty<string>();
 	}
 
 	private Task<Dictionary<Guid, IContentType>> GetContentTypesAsync()
@@ -407,7 +409,8 @@ internal sealed class AlgoliaIndexExecutor
 				.GetAll()
 				.ToDictionary(x => x.Key);
 
-			return Task.FromResult(dict);
-		});
+			return Task.FromResult(dict)!;
+		})!;
 	}
+
 }

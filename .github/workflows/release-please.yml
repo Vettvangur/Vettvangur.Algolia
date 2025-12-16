@@ -73,7 +73,7 @@ jobs:
         if: ${{ steps.rp.outputs.release_created == 'true' }}
         uses: NuGet/login@v1
         with:
-          user: gardarthorsteins
+          user: Vettvangur
 
       - name: Push to NuGet.org
         if: ${{ steps.rp.outputs.release_created == 'true' }}

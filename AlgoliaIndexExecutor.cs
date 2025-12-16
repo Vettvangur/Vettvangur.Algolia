@@ -86,13 +86,26 @@ internal sealed class AlgoliaIndexExecutor
 
 			foreach (var alias in typeAliases)
 			{
+				_logger.LogInformation("Building index for {ContentType}", alias);
+
 				using var ctx = _umbracoContextFactory.EnsureUmbracoContext();
 				var contentType = ctx.UmbracoContext.Content?.GetContentType(alias);
 
 				if (contentType is null) continue;
 
-				var entitiesForIndex = _contentService.GetPagedOfType(contentType.Id, 0, int.MaxValue, out _, new Query<IContent>(_scopeProvider.SqlContext)
-						  .Where(x => !x.Trashed));
+				var entitiesForIndex = new List<IContent>();
+				const int pageSize = 200;
+				var page = 0;
+				long total;
+				var filter = new Query<IContent>(_scopeProvider.SqlContext).Where(x => !x.Trashed);
+
+				do
+				{
+					var pageItems = _contentService.GetPagedOfType(contentType.Id, page, pageSize, out total, filter)
+												   .Where(x => !x.Trashed);
+					entitiesForIndex.AddRange(pageItems);
+					page++;
+				} while (entitiesForIndex.Count < total);
 
 				_logger.LogInformation("Building index for {ContentType} with {Count} items", alias, entitiesForIndex.Count());
 

@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.3](https://github.com/Vettvangur/Vettvangur.Algolia/compare/Vettvangur.Algolia-v1.6.2...Vettvangur.Algolia-v1.6.3) (2025-12-16)
+
+
+### Bug Fixes
+
+* Data properties mapped correctly and refactoring few small issues ([4218938](https://github.com/Vettvangur/Vettvangur.Algolia/commit/4218938caf5dfc7e164523f73d069974e13fc351))
+* revert version number ([450d465](https://github.com/Vettvangur/Vettvangur.Algolia/commit/450d4651438085f0041749cc41d25c5afc3bd444))
+
 ## [1.6.2](https://github.com/Vettvangur/Vettvangur.Algolia/compare/Vettvangur.Algolia-v1.6.1...Vettvangur.Algolia-v1.6.2) (2025-10-03)
 
 

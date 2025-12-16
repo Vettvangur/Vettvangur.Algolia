@@ -1,19 +1,68 @@
 name: release-please
 
-"on":
+on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   workflow_dispatch: {}
 
 permissions:
   contents: write
   pull-requests: write
+  id-token: write   # required for OIDC / Trusted Publishing
 
 jobs:
   release-please:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
+
     steps:
-      - uses: google-github-actions/release-please-action@v4
+      - id: rp
+        uses: google-github-actions/release-please-action@v4
         with:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
+
+      - uses: actions/checkout@v4
+        if: ${{ steps.rp.outputs.release_created == 'true' }}
+
+      - uses: actions/setup-dotnet@v4
+        if: ${{ steps.rp.outputs.release_created == 'true' }}
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore
+        if: ${{ steps.rp.outputs.release_created == 'true' }}
+        run: dotnet restore
+
+      - name: Pack released paths
+        if: ${{ steps.rp.outputs.release_created == 'true' }}
+        shell: bash
+        run: |
+          echo "paths_released:"
+          echo '${{ steps.rp.outputs.paths_released }}' | jq .
+
+          mkdir -p artifacts
+
+          for path in $(echo '${{ steps.rp.outputs.paths_released }}' | jq -r '.[]'); do
+            echo "Packing: $path"
+            dotnet pack "$path" -c Release -o ./artifacts
+          done
+
+      # Keyless login: exchange GitHub OIDC token for short-lived NuGet API key
+      - name: NuGet login (OIDC)
+              id: nugetlogin
+              if: ${{ steps.rp.outputs.release_created == 'true' }}
+              uses: NuGet/login@v1
+              with:
+                nugetServer: https://api.nuget.org/v3/index.json
+
+            - name: Push to NuGet.org
+              if: ${{ steps.rp.outputs.release_created == 'true' }}
+              run: |
+                dotnet nuget push "./artifacts/*.nupkg" \
+                  --api-key "${{ steps.nugetlogin.outputs.nuget_api_key }}" \
+                  --source "https://api.nuget.org/v3/index.json" \
+                  --skip-duplicate

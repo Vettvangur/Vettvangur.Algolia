@@ -37,6 +37,10 @@ jobs:
         if: ${{ steps.rp.outputs.release_created == 'true' }}
         run: dotnet restore
 
+      - name: Build (Release)
+        if: ${{ steps.rp.outputs.release_created == 'true' }}
+        run: dotnet build -c Release --no-restore
+
       - name: Pack released paths
         if: ${{ steps.rp.outputs.release_created == 'true' }}
         shell: bash
@@ -46,10 +50,23 @@ jobs:
 
           mkdir -p artifacts
 
-          for path in $(echo '${{ steps.rp.outputs.paths_released }}' | jq -r '.[]'); do
-            echo "Packing: $path"
-            dotnet pack "$path" -c Release -o ./artifacts
-          done
+          # For each released path, pack any .csproj found there (and one level below)
+          while IFS= read -r path; do
+            echo "Released path: $path"
+
+            # Find packable projects
+            mapfile -t projects < <(find "$path" -maxdepth 2 -name '*.csproj' -print)
+
+            if [ ${#projects[@]} -eq 0 ]; then
+              echo "No .csproj found under $path"
+              continue
+            fi
+
+            for proj in "${projects[@]}"; do
+              echo "Packing: $proj"
+              dotnet pack "$proj" -c Release --no-build -o ./artifacts
+            done
+          done < <(echo '${{ steps.rp.outputs.paths_released }}' | jq -r '.[]')
 
       - name: NuGet Login (OIDC)
         id: login

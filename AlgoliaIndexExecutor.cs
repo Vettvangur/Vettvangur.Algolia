@@ -143,7 +143,7 @@ internal sealed class AlgoliaIndexExecutor
 								contentTypeDictionary
 							);
 						})
-						.Where(d => d != null)!;
+						.Where(d => d != null)!.ToList();
 
 					try
 					{

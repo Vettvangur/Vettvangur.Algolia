@@ -10,5 +10,5 @@ public sealed class AlgoliaDocument
 	public long UpdateDateUnixSecond => new DateTimeOffset(UpdateDate).ToUnixTimeSeconds();
 	public required DateTime CreateDate { get; set; }
 	public long CreateDateUnixSecond => new DateTimeOffset(CreateDate).ToUnixTimeSeconds();
-	public IDictionary<string, object> Data { get; set; }
+	public IDictionary<string, object> Data { get; set; } = new Dictionary<string, object>();
 }

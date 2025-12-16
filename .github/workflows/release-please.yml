@@ -8,7 +8,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
-  id-token: write   # required for OIDC / Trusted Publishing
+  id-token: write
 
 jobs:
   release-please:
@@ -51,18 +51,17 @@ jobs:
             dotnet pack "$path" -c Release -o ./artifacts
           done
 
-      # Keyless login: exchange GitHub OIDC token for short-lived NuGet API key
-      - name: NuGet login (OIDC)
-              id: nugetlogin
-              if: ${{ steps.rp.outputs.release_created == 'true' }}
-              uses: NuGet/login@v1
-              with:
-                nugetServer: https://api.nuget.org/v3/index.json
+      - name: NuGet Login (OIDC)
+        id: login
+        if: ${{ steps.rp.outputs.release_created == 'true' }}
+        uses: NuGet/login@v1
+        with:
+          user: gardarthorsteins
 
-            - name: Push to NuGet.org
-              if: ${{ steps.rp.outputs.release_created == 'true' }}
-              run: |
-                dotnet nuget push "./artifacts/*.nupkg" \
-                  --api-key "${{ steps.nugetlogin.outputs.nuget_api_key }}" \
-                  --source "https://api.nuget.org/v3/index.json" \
-                  --skip-duplicate
+      - name: Push to NuGet.org
+        if: ${{ steps.rp.outputs.release_created == 'true' }}
+        run: |
+          dotnet nuget push "./artifacts/*.nupkg" \
+            --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" \
+            --source "https://api.nuget.org/v3/index.json" \
+            --skip-duplicate

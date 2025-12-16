@@ -94,7 +94,7 @@ internal sealed class AlgoliaIndexExecutor
 				if (contentType is null) continue;
 
 				var entitiesForIndex = new List<IContent>();
-				const int pageSize = 200;
+				const int pageSize = 250;
 				var page = 0;
 				long total;
 				var filter = new Query<IContent>(_scopeProvider.SqlContext).Where(x => !x.Trashed);
@@ -145,13 +145,22 @@ internal sealed class AlgoliaIndexExecutor
 						})
 						.Where(d => d != null)!;
 
-					await _client.ReplaceAllObjectsAsync(
-						indexName: indexNameWithCulture,
-						objects: documents,
-						batchSize: 1000,
-						cancellationToken: ct
-					);
+					try
+					{
+						var response = await _client.ReplaceAllObjectsAsync(
+							indexName: indexNameWithCulture,
+							objects: documents,
+							batchSize: 500,
+							cancellationToken: ct
+						);
 
+					} catch (Exception ex)
+					{
+						_logger.LogError(ex,
+							"Failed to index documents for content type {ContentType} and culture {Culture}. Index: {indexNameWithCulture}",
+							alias, culture, indexNameWithCulture);
+						throw;
+					}
 				}
 
 			}

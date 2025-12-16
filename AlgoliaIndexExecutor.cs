@@ -75,7 +75,7 @@ internal sealed class AlgoliaIndexExecutor
 
 		var contentTypeDictionary = await GetContentTypesAsync();
 
-		foreach (var index in _config.Indexes)
+		foreach (var index in indexes)
 		{
 			if (string.IsNullOrWhiteSpace(index.IndexName)) continue;
 
@@ -103,7 +103,34 @@ internal sealed class AlgoliaIndexExecutor
 				{
 					var indexNameWithCulture = $"{index.IndexName}_{culture.ToLowerInvariant()}";
 
-					var documents = list.Select(x => MapDocument(x, culture, index.IndexName, allowedProps: typeAliases, allCultures, contentTypeDictionary));
+					var documents = list
+						.Select(x =>
+						{
+							var allowedProps =
+								index.ContentTypes?
+									.FirstOrDefault(ct => ct.Alias.Equals(x.ContentType.Alias, StringComparison.OrdinalIgnoreCase))
+									?.Properties?
+									.Where(p => !string.IsNullOrWhiteSpace(p))
+									.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+							if (allowedProps == null || allowedProps.Count == 0)
+							{
+								allowedProps = x.Properties
+									.Select(p => p.Alias)
+									.Where(a => !string.IsNullOrWhiteSpace(a))
+									.ToHashSet(StringComparer.OrdinalIgnoreCase);
+							}
+
+							return MapAndEnrichForCulture(
+								x,
+								culture,
+								index.IndexName,
+								allowedProps,
+								allCultures,
+								contentTypeDictionary
+							);
+						})
+						.Where(d => d != null)!;
 
 					await _client.ReplaceAllObjectsAsync(
 						indexName: indexNameWithCulture,
@@ -233,10 +260,20 @@ internal sealed class AlgoliaIndexExecutor
 
 		foreach (var node in nodes)
 		{
-			var allowedProps = index.ContentTypes?
-				.FirstOrDefault(ct => ct.Alias.Equals(node.ContentType.Alias, StringComparison.OrdinalIgnoreCase))
-				?.Properties
-				?.ToHashSet(StringComparer.OrdinalIgnoreCase) ?? [];
+			var allowedProps =
+				index.ContentTypes?
+					.FirstOrDefault(ct => ct.Alias.Equals(node.ContentType.Alias, StringComparison.OrdinalIgnoreCase))
+					?.Properties?
+					.Where(p => !string.IsNullOrWhiteSpace(p))
+					.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+			if (allowedProps == null || allowedProps.Count == 0)
+			{
+				allowedProps = node.Properties
+					.Select(p => p.Alias)
+					.Where(a => !string.IsNullOrWhiteSpace(a))
+					.ToHashSet(StringComparer.OrdinalIgnoreCase);
+			}
 
 			AlgoliaDocument? doc = null;
 			try

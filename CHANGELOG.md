@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.0](https://github.com/Vettvangur/Vettvangur.Algolia/compare/Vettvangur.Algolia-v1.6.4...Vettvangur.Algolia-v1.7.0) (2025-12-16)
+
+
+### Features
+
+* github action to release to nuget. fix: try catch around replace all ([3fccbd5](https://github.com/Vettvangur/Vettvangur.Algolia/commit/3fccbd5f162ea749e14e744897eb280fa3b2c24f))
+
+
+### Bug Fixes
+
+* add username ([58a38d8](https://github.com/Vettvangur/Vettvangur.Algolia/commit/58a38d8cdd051a720de77c58336d21027ad9b549))
+* yml release file ([901b29b](https://github.com/Vettvangur/Vettvangur.Algolia/commit/901b29b8d1c582c0762e5884b4d4f78978c5749a))
+
 ## [1.6.4](https://github.com/Vettvangur/Vettvangur.Algolia/compare/Vettvangur.Algolia-v1.6.3...Vettvangur.Algolia-v1.6.4) (2025-12-16)
 
 

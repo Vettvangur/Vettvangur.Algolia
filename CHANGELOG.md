@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.7.4](https://github.com/Vettvangur/Vettvangur.Algolia/compare/Vettvangur.Algolia-v1.7.3...Vettvangur.Algolia-v1.7.4) (2025-12-16)
+
+
+### Bug Fixes
+
+* try catch around converters, fix string udi parser in media picker. ([c180500](https://github.com/Vettvangur/Vettvangur.Algolia/commit/c1805008bb3f135b63c6228f4863e1a6acb96c09))
+
 ## [1.7.3](https://github.com/Vettvangur/Vettvangur.Algolia/compare/Vettvangur.Algolia-v1.7.2...Vettvangur.Algolia-v1.7.3) (2025-12-16)
 
 

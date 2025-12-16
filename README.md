@@ -16,7 +16,12 @@ Built for Umbraco 13+ and the Algolia .NET client (v8+).
 
 ## Installation
 
-1) Add the project/package to your Umbraco solution.
+**NuGet package:** https://www.nuget.org/packages/Vettvangur.Algolia/  
+Install via NuGet:
+
+```bash
+dotnet add package Vettvangur.Algolia
+```
 
 2) **Configure** (e.g. `appsettings.json`):
 

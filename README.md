@@ -157,6 +157,40 @@ That’s it—during indexing, your enricher runs **once per (node, culture)** r
 
 ---
 
+## Property Transforms (`|unix`)
+
+Index configuration supports **property transform directives**.  
+A transform tells the indexer to **emit an additional derived field** in Algolia, while keeping the original property unchanged.
+
+Currently supported transform:
+
+- `|unix` – emits a Unix timestamp (seconds)
+- `|unixms` – emits a Unix timestamp (milliseconds)
+
+### Why this exists
+
+Algolia sorting, filtering, and range queries work best with numeric fields.  
+Umbraco date properties are typically indexed as strings (ISO format), which are not ideal for these operations.
+
+Using `|unix` gives you **both**:
+- the original date string (for display/debugging)
+- a numeric timestamp (for filtering, sorting, and range queries)
+
+---
+
+### Configuration example
+
+```json
+{
+  "Alias": "docAlias",
+  "Properties": [
+    "title",
+    "date|unix",
+    "summary"
+  ]
+}
+```
+
 ## Custom Property Value Converters
 
 You can plug into the mapping step and **transform individual property values** before they are sent to Algolia.  

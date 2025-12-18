@@ -2,6 +2,8 @@ using Algolia.Search.Clients;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using System.Globalization;
+using Umbraco.Cms.Core.Media.EmbedProviders;
 using Umbraco.Cms.Core.Models;
 using Umbraco.Cms.Core.PropertyEditors;
 using Umbraco.Cms.Core.Routing;
@@ -124,14 +126,18 @@ internal sealed class AlgoliaIndexExecutor
 									.FirstOrDefault(ct => ct.Alias.Equals(x.ContentType.Alias, StringComparison.OrdinalIgnoreCase))
 									?.Properties?
 									.Where(p => !string.IsNullOrWhiteSpace(p))
-									.ToHashSet(StringComparer.OrdinalIgnoreCase);
+									.Select(ConfiguredField.Parse)
+									.Where(f => !string.IsNullOrWhiteSpace(f.Alias))
+									.GroupBy(f => f.Alias, StringComparer.OrdinalIgnoreCase)
+									.ToDictionary(g => g.Key, g => g.Last().Transform, StringComparer.OrdinalIgnoreCase);
 
 							if (allowedProps == null || allowedProps.Count == 0)
 							{
 								allowedProps = x.Properties
 									.Select(p => p.Alias)
 									.Where(a => !string.IsNullOrWhiteSpace(a))
-									.ToHashSet(StringComparer.OrdinalIgnoreCase);
+									.Distinct(StringComparer.OrdinalIgnoreCase)
+									.ToDictionary(a => a, _ => AlgoliaFieldTransform.None, StringComparer.OrdinalIgnoreCase);
 							}
 
 							return MapAndEnrichForCulture(
@@ -287,17 +293,22 @@ internal sealed class AlgoliaIndexExecutor
 					.FirstOrDefault(ct => ct.Alias.Equals(node.ContentType.Alias, StringComparison.OrdinalIgnoreCase))
 					?.Properties?
 					.Where(p => !string.IsNullOrWhiteSpace(p))
-					.ToHashSet(StringComparer.OrdinalIgnoreCase);
+					.Select(ConfiguredField.Parse)
+					.Where(f => !string.IsNullOrWhiteSpace(f.Alias))
+					.GroupBy(f => f.Alias, StringComparer.OrdinalIgnoreCase)
+					.ToDictionary(g => g.Key, g => g.Last().Transform, StringComparer.OrdinalIgnoreCase);
 
 			if (allowedProps == null || allowedProps.Count == 0)
 			{
 				allowedProps = node.Properties
 					.Select(p => p.Alias)
 					.Where(a => !string.IsNullOrWhiteSpace(a))
-					.ToHashSet(StringComparer.OrdinalIgnoreCase);
+					.Distinct(StringComparer.OrdinalIgnoreCase)
+					.ToDictionary(a => a, _ => AlgoliaFieldTransform.None, StringComparer.OrdinalIgnoreCase);
 			}
 
 			AlgoliaDocument? doc = null;
+
 			try
 			{
 				doc = MapAndEnrichForCulture(node, culture, index.IndexName, allowedProps, availableCultures, contentTypeDictionary);
@@ -342,12 +353,17 @@ internal sealed class AlgoliaIndexExecutor
 			cancellationToken: ct);
 	}
 
-	private AlgoliaDocument? MapDocument(IContent c, string? culture, string baseIndexName, HashSet<string> allowedProps, IEnumerable<string> availableCultures, IDictionary<Guid, IContentType> contentTypeDictionary)
+	private AlgoliaDocument? MapDocument(
+	IContent c,
+	string? culture,
+	string baseIndexName,
+	Dictionary<string, AlgoliaFieldTransform> allowedProps,
+	IEnumerable<string> availableCultures,
+	IDictionary<Guid, IContentType> contentTypeDictionary)
 	{
 		using var contextReference = _umbracoContextFactory.EnsureUmbracoContext();
 
 		var name = culture == null ? c.Name : c.GetCultureName(culture) ?? "";
-
 		if (string.IsNullOrEmpty(name)) return null;
 
 		var url = culture == null ? _urlProvider.GetUrl(c.Id) : _urlProvider.GetUrl(c.Id, culture: culture);
@@ -364,22 +380,40 @@ internal sealed class AlgoliaIndexExecutor
 			Data = new Dictionary<string, object>()
 		};
 
-		foreach (var alias in allowedProps)
+		foreach (var kvp in allowedProps)
 		{
-			var prop = c.Properties.FirstOrDefault(x => x.Alias == alias);
+			var alias = kvp.Key;
+			var transform = kvp.Value;
 
+			var prop = c.Properties.FirstOrDefault(x => x.Alias.Equals(alias, StringComparison.OrdinalIgnoreCase));
 			if (prop is null) continue;
 
-			var propCulture = prop.PropertyType.Variations.VariesByCulture()
-				? culture
-				: null;
+			var propCulture = prop.PropertyType.Variations.VariesByCulture() ? culture : null;
 
 			var value = ReadPropertyValue(prop, propCulture, availableCultures, contentTypeDictionary);
 
 			var ctx = new AlgoliaPropertyContext(c, prop, propCulture, culture, baseIndexName);
 			var converted = ConvertProperty(ctx, value);
 
-			if (converted is not null) doc.Data[alias] = converted;
+			if (converted is not null)
+				doc.Data[alias] = converted;
+
+			if (converted is not null && transform != AlgoliaFieldTransform.None)
+			{
+				var unixValue = transform switch
+				{
+					AlgoliaFieldTransform.UnixSeconds => TryToUnix(converted, unixMilliseconds: false),
+					AlgoliaFieldTransform.UnixMilliseconds => TryToUnix(converted, unixMilliseconds: true),
+					_ => null
+				};
+
+				if (unixValue is not null)
+				{
+					var derivedAlias = $"{alias}Unix";
+
+					doc.Data[derivedAlias] = unixValue;
+				}
+			}
 		}
 
 		return doc;
@@ -389,8 +423,8 @@ internal sealed class AlgoliaIndexExecutor
 		IContent content,
 		string? culture,
 		string baseIndexName,
-		HashSet<string> allowedProps,
-		IEnumerable<string> availableCultures, 
+		Dictionary<string, AlgoliaFieldTransform> allowedProps,
+		IEnumerable<string> availableCultures,
 		IDictionary<Guid, IContentType> contentTypeDictionary)
 	{
 		var doc = MapDocument(content, culture, baseIndexName, allowedProps, availableCultures, contentTypeDictionary);
@@ -470,6 +504,69 @@ internal sealed class AlgoliaIndexExecutor
 
 			return Task.FromResult(dict)!;
 		})!;
+	}
+
+	internal readonly record struct ConfiguredField(string Alias, AlgoliaFieldTransform Transform)
+	{
+		public static ConfiguredField Parse(string raw)
+		{
+			if (string.IsNullOrWhiteSpace(raw))
+				return new ConfiguredField(string.Empty, AlgoliaFieldTransform.None);
+
+			var parts = raw.Split('|', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+			var alias = parts[0];
+
+			if (parts.Length < 2)
+				return new ConfiguredField(alias, AlgoliaFieldTransform.None);
+
+			return parts[1].ToLowerInvariant() switch
+			{
+				"unix" => new ConfiguredField(alias, AlgoliaFieldTransform.UnixSeconds),
+				"unixms" => new ConfiguredField(alias, AlgoliaFieldTransform.UnixMilliseconds),
+				_ => new ConfiguredField(alias, AlgoliaFieldTransform.None)
+			};
+		}
+	}
+
+	private static object? TryToUnix(object? value, bool unixMilliseconds)
+	{
+		if (value is null) return null;
+
+		DateTimeOffset dto;
+
+		switch (value)
+		{
+			case DateTimeOffset d:
+				dto = d;
+				break;
+
+			case DateTime dt:
+				// treat unspecified as local, otherwise preserve kind
+				dto = dt.Kind switch
+				{
+					DateTimeKind.Utc => new DateTimeOffset(dt, TimeSpan.Zero),
+					DateTimeKind.Local => new DateTimeOffset(dt),
+					_ => new DateTimeOffset(DateTime.SpecifyKind(dt, DateTimeKind.Local))
+				};
+				break;
+
+			case string s when !string.IsNullOrWhiteSpace(s):
+				// accepts ISO strings etc.
+				if (!DateTimeOffset.TryParse(s, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out dto) &&
+					!DateTimeOffset.TryParse(s, out dto))
+				{
+					return null;
+				}
+				break;
+
+			default:
+				return null;
+		}
+
+		return unixMilliseconds
+			? dto.ToUnixTimeMilliseconds()
+			: dto.ToUnixTimeSeconds();
 	}
 
 }

@@ -1,11 +1,10 @@
 using Umbraco.Cms.Core.Models;
-
 namespace Vettvangur.Algolia;
 public sealed record AlgoliaEnrichmentContext(
 	IContent Content,
 	string? Culture,
 	string BaseIndexName,
-	IReadOnlySet<string>? AllowedPropertyAliases
+	IReadOnlyDictionary<string, AlgoliaFieldTransform>? AllowedPropertyAliases
 );
 
 public interface IAlgoliaDocumentEnricher

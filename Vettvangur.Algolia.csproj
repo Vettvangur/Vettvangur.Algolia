@@ -9,14 +9,14 @@
 		<PackageId>Vettvangur.Algolia</PackageId>
 		<Title>Vettvangur.Algolia</Title>
 		<Description>Umbraco → Algolia indexer with per-culture indexes, background queue/worker, and coalesced updates.</Description>
-		<Version>1.8.0</Version>
+		<Version>1.8.1</Version>
 		<Authors>Vettvangur</Authors>
 		<PackageTags>umbraco;plugin;package;algolia;indexer;search</PackageTags>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>
 		<PackageProjectUrl>https://github.com/Vettvangur/Vettvangur.Algolia</PackageProjectUrl>
 		<RepositoryUrl>https://github.com/Vettvangur/Vettvangur.Algolia</RepositoryUrl>
 		<RepositoryType>git</RepositoryType>
-		<PackageReleaseNotes />
+		<PackageReleaseNotes/>
 		<Copyright>Copyright © 2025 Vettvangur</Copyright>
 
 		<!-- Icon & README -->
@@ -39,17 +39,17 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Algolia.Search" Version="7.36.1" />
-		<PackageReference Include="Umbraco.Cms.Core" Version="13.13.0" />
-		<PackageReference Include="Umbraco.Cms.Web.BackOffice" Version="13.13.0" />
-		<PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+		<PackageReference Include="Algolia.Search" Version="7.36.1"/>
+		<PackageReference Include="Umbraco.Cms.Core" Version="13.13.0"/>
+		<PackageReference Include="Umbraco.Cms.Web.BackOffice" Version="13.13.0"/>
+		<PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All"/>
 	</ItemGroup>
 
 	<!-- Pack the icon & README into the nupkg -->
 	<ItemGroup>
-		<None Include="vv_logo.png" Pack="true" PackagePath="" />
-		<None Include="README.md" Pack="true" PackagePath="" />
-		<None Include="CHANGELOG.md" Pack="true" PackagePath="" />
+		<None Include="vv_logo.png" Pack="true" PackagePath=""/>
+		<None Include="README.md" Pack="true" PackagePath=""/>
+		<None Include="CHANGELOG.md" Pack="true" PackagePath=""/>
 	</ItemGroup>
 
 </Project>

@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.8.1](https://github.com/Vettvangur/Vettvangur.Algolia/compare/Vettvangur.Algolia-v1.8.0...Vettvangur.Algolia-v1.8.1) (2026-01-16)
+
+
+### Bug Fixes
+
+* update umbraco package to 13.13.0 and algolia search to 7.36.1 ([ec4ebf4](https://github.com/Vettvangur/Vettvangur.Algolia/commit/ec4ebf436b3cdd2900007499dad2693788f27178))
+
 ## [1.8.0](https://github.com/Vettvangur/Vettvangur.Algolia/compare/Vettvangur.Algolia-v1.7.4...Vettvangur.Algolia-v1.8.0) (2025-12-18)
 
 

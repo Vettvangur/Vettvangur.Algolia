@@ -153,15 +153,17 @@ internal sealed class AlgoliaIndexExecutor
 
 					try
 					{
-						var response = await _client.ReplaceAllObjectsAsync(
-							indexName: indexNameWithCulture,
-							objects: documents,
-							batchSize: 500,
-							cancellationToken: ct
-						);
+					var response = await _client.ReplaceAllObjectsAsync(
+						indexName: indexNameWithCulture,
+						objects: documents,
+						batchSize: 500,
+						cancellationToken: ct
+					);
 
-					} catch (Exception ex)
-					{
+					_logger.LogInformation("Rebuilt index {IndexName} with {Count} documents", indexNameWithCulture, documents.Count);
+
+				} catch (Exception ex)
+				{
 						_logger.LogError(ex,
 							"Failed to index documents for content type {ContentType} and culture {Culture}. Index: {indexNameWithCulture}",
 							alias, culture, indexNameWithCulture);

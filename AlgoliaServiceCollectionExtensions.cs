@@ -30,7 +30,7 @@ public static class AlgoliaServiceCollectionExtensions
 		services.AddHostedService<AlgoliaIndexWorker>();
 
 		services.TryAddSingleton<IAlgoliaIndexService, AlgoliaIndexService>();
-		services.TryAddSingleton<IAlgoliaSearchService, AlgoliaSearchService>();
+		services.TryAddSingleton<IAlgoliaContentSearchService, AlgoliaContentSearchService>();
 
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IAlgoliaPropertyValueConverter, MediaPickerConverter>());
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IAlgoliaPropertyValueConverter, ContentPickerConverter>());

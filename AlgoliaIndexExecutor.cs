@@ -76,6 +76,7 @@ internal sealed class AlgoliaIndexExecutor
 		var allCultures = await GetAllCulturesAsync();
 
 		var contentTypeDictionary = await GetContentTypesAsync();
+		var documentsByIndexName = new Dictionary<string, List<AlgoliaDocument>>(StringComparer.OrdinalIgnoreCase);
 
 		foreach (var index in indexes)
 		{
@@ -149,30 +150,42 @@ internal sealed class AlgoliaIndexExecutor
 								contentTypeDictionary
 							);
 						})
-						.Where(d => d != null)!.ToList();
+						.OfType<AlgoliaDocument>()
+						.ToList();
 
-					try
+					if (!documentsByIndexName.TryGetValue(indexNameWithCulture, out var aggregatedDocuments))
 					{
-					var response = await _client.ReplaceAllObjectsAsync(
-						indexName: indexNameWithCulture,
-						objects: documents,
-						batchSize: 500,
-						cancellationToken: ct
-					);
-
-					_logger.LogInformation("Rebuilt index {IndexName} with {Count} documents", indexNameWithCulture, documents.Count);
-
-				} catch (Exception ex)
-				{
-						_logger.LogError(ex,
-							"Failed to index documents for content type {ContentType} and culture {Culture}. Index: {indexNameWithCulture}",
-							alias, culture, indexNameWithCulture);
-						throw;
+						aggregatedDocuments = new List<AlgoliaDocument>();
+						documentsByIndexName[indexNameWithCulture] = aggregatedDocuments;
 					}
+
+					aggregatedDocuments.AddRange(documents);
 				}
 
 			}
 
+		}
+
+		foreach (var (finalIndexName, documents) in documentsByIndexName)
+		{
+			try
+			{
+				await _client.ReplaceAllObjectsAsync(
+					indexName: finalIndexName,
+					objects: documents,
+					batchSize: 500,
+					cancellationToken: ct
+				);
+
+				_logger.LogInformation("Rebuilt index {IndexName} with {Count} documents", finalIndexName, documents.Count);
+			}
+			catch (Exception ex)
+			{
+				_logger.LogError(ex,
+					"Failed to rebuild index {IndexName}",
+					finalIndexName);
+				throw;
+			}
 		}
 
 		_logger.LogInformation(indexName is null

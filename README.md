@@ -31,6 +31,8 @@ dotnet add package Vettvangur.Algolia
     "ApplicationId": "ALGOLIA_APP_ID",
     "AdminApiKey": "ALGOLIA_ADMIN_API_KEY",
 	"SearchApiKey": "ALGOLIA_SEARCH_API_KEY",
+	"SearchCacheEnabled": true,
+	"SearchCacheDurationMinutes": 5,
     "EnforcePublisherOnly": true, // default: true → only Publisher servers push to Algolia
     "Indexes": [
       {
@@ -99,6 +101,26 @@ public interface IAlgoliaIndexService
     Task RebuildAsync(string? indexName = null, CancellationToken ct = default);
 }
 ```
+
+### Search service
+
+```csharp
+public interface IAlgoliaSearchService
+{
+    Task<AlgoliaSearchResult> SearchAsync(AlgoliaSearchRequest request, CancellationToken ct = default);
+}
+
+var result = await algoliaSearchService.SearchAsync(new AlgoliaSearchRequest
+{
+    IndexName = "SearchIndex",
+    Culture = "en-US",
+    Query = "umbraco",
+    Page = 0,
+    HitsPerPage = 20
+}, ct);
+```
+
+When `SearchCacheEnabled` is `true`, search responses are cached in memory for `SearchCacheDurationMinutes`.
 
 ---
 

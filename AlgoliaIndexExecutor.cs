@@ -395,10 +395,10 @@ internal sealed class AlgoliaIndexExecutor
 			var ctx = new AlgoliaPropertyContext(c, prop, propCulture, culture, baseIndexName);
 			var converted = ConvertProperty(ctx, value);
 
-			if (converted is not null)
-				doc.Data[alias] = converted;
+			if (HasIndexableValue(converted))
+				doc.Data[alias] = converted!;
 
-			if (converted is not null && transform != AlgoliaFieldTransform.None)
+			if (HasIndexableValue(converted) && transform != AlgoliaFieldTransform.None)
 			{
 				var unixValue = transform switch
 				{
@@ -452,6 +452,15 @@ internal sealed class AlgoliaIndexExecutor
 		}
 		return value;
 	}
+
+	private static bool HasIndexableValue(object? value)
+		=> value switch
+		{
+			null => false,
+			string s => !string.IsNullOrWhiteSpace(s),
+			_ => true
+		};
+
 	private object? ReadPropertyValue(IProperty property, string? culture, IEnumerable<string> availableCultures, IDictionary<Guid, IContentType> contentTypeDictionary)
 	{
 		var propertyEditor = _propertyEditorsCollection.FirstOrDefault(p => p.Alias == property.PropertyType.PropertyEditorAlias);

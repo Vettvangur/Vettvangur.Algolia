@@ -4,6 +4,8 @@ public class AlgoliaConfig
 	public string ApplicationId { get; set; } = string.Empty;
 	public string AdminApiKey { get; set; } = string.Empty;
 	public string SearchApiKey { get; set; } = string.Empty;
+	public bool SearchCacheEnabled { get; set; }
+	public int SearchCacheDurationMinutes { get; set; } = 5;
 	public bool EnforcePublisherOnly { get; set; } = true;
 	public IEnumerable<AlgoliaIndex> Indexes { get; set; } = [];
 }

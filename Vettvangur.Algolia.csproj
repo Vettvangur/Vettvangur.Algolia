@@ -39,7 +39,7 @@
 	</PropertyGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Algolia.Search" Version="7.36.1"/>
+		<PackageReference Include="Algolia.Search" Version="7.40.0" />
 		<PackageReference Include="Umbraco.Cms.Core" Version="13.13.0"/>
 		<PackageReference Include="Umbraco.Cms.Web.BackOffice" Version="13.13.0"/>
 		<PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All"/>

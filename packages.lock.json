@@ -4,9 +4,9 @@
     "net8.0": {
       "Algolia.Search": {
         "type": "Direct",
-        "requested": "[7.36.1, )",
-        "resolved": "7.36.1",
-        "contentHash": "UuN3/y232kkWOp6/15xGaG5u7YsYjW7namqxQjbvdYtF5GQYTqxuQGOV19qcBbMOsJ4fdEx73CZAHWP896qYPQ==",
+        "requested": "[7.40.0, )",
+        "resolved": "7.40.0",
+        "contentHash": "d6h5GQ+3N668Y2A0qpz1EsRMLV2NxZ30L5W6SEyL7CR92SyislmwyDSxaP5gTCgLu60N1ReYeQSNFJcYp9cTZg==",
         "dependencies": {
           "Microsoft.Extensions.Logging": "[8.0.0, 11.0.0)",
           "Microsoft.Extensions.Logging.Abstractions": "[8.0.0, 11.0.0)",

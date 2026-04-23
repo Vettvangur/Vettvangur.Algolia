@@ -105,12 +105,12 @@ public interface IAlgoliaIndexService
 ### Search service
 
 ```csharp
-public interface IAlgoliaSearchService
+public interface IAlgoliaContentSearchService
 {
-    Task<AlgoliaSearchResult> SearchAsync(AlgoliaSearchRequest request, CancellationToken ct = default);
+    Task<AlgoliaContentSearchResult> SearchAsync(AlgoliaContentSearchRequest request, CancellationToken ct = default);
 }
 
-var result = await algoliaSearchService.SearchAsync(new AlgoliaSearchRequest
+var result = await algoliaContentSearchService.SearchAsync(new AlgoliaContentSearchRequest
 {
     IndexName = "SearchIndex",
     Culture = "en-US",

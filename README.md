@@ -5,7 +5,7 @@ Built for Umbraco 13+ and the Algolia .NET client (v8+).
 
 ## Highlights
 
-🔤 Per-culture indexes — writes to <baseIndex>_<culture> (e.g. SearchIndex_en-US).
+🔤 Per-culture indexes — writes to <baseIndex>.<environment>.<culture> (e.g. searchindex.staging.en-us).
 🧩 Config-driven — pick which document types and property aliases are indexed.
 🧵 Background queue/worker — enqueue from notifications without blocking request or cache refresher threads.
 🚦 Bounded channel — back-pressure handled internally; service uses non-blocking TryEnqueue + safe fallback.
@@ -31,8 +31,11 @@ dotnet add package Vettvangur.Algolia
     "ApplicationId": "ALGOLIA_APP_ID",
     "AdminApiKey": "ALGOLIA_ADMIN_API_KEY",
 	"SearchApiKey": "ALGOLIA_SEARCH_API_KEY",
+	"Environment": "staging",
 	"SearchCacheEnabled": true,
 	"SearchCacheDurationMinutes": 5,
+	"IncludeUserToken": true,
+	"VaryCacheByUserToken": false,
     "EnforcePublisherOnly": true, // default: true → only Publisher servers push to Algolia
     "Indexes": [
       {
@@ -87,6 +90,8 @@ Upsert: map to AlgoliaDocument, run enrichers, and SaveObjectsAsync in chunks (1
 
 Delete: use Key (Guid) per culture and DeleteObjectsAsync.
 
+Index names are resolved as `<indexName>.<environment>.<culture>` and normalized to lowercase. `Environment` is optional; when omitted, the .NET host environment name is used.
+
 ---
 
 ## Public service
@@ -102,6 +107,22 @@ public interface IAlgoliaIndexService
 }
 ```
 
+### Rebuild indexes API
+
+The package exposes a backoffice API endpoint for manually rebuilding Algolia indexes:
+
+```http
+POST /umbraco/backoffice/api/Algolia/RebuildIndexes
+```
+
+To rebuild one configured base index, pass its configured `IndexName` as a query string value:
+
+```http
+POST /umbraco/backoffice/api/Algolia/RebuildIndexes?indexName=SearchIndex
+```
+
+This endpoint inherits from `UmbracoAuthorizedApiController`, so the caller must be an authorized Umbraco backoffice user with a valid logged-in backoffice session.
+
 ### Search service
 
 ```csharp
@@ -116,11 +137,15 @@ var result = await algoliaContentSearchService.SearchAsync(new AlgoliaContentSea
     Culture = "en-US",
     Query = "umbraco",
     Page = 0,
-    HitsPerPage = 20
+    HitsPerPage = 20,
+    UserToken = "anonymous-user-id"
 }, ct);
 ```
 
+The example above searches `searchindex.staging.en-us` when `Environment` is `staging`.
 When `SearchCacheEnabled` is `true`, search responses are cached in memory for `SearchCacheDurationMinutes`.
+`IncludeUserToken` defaults to `true` and sends `UserToken` to Algolia when provided. Use a pseudonymous token only; don't include personally identifiable information.
+`VaryCacheByUserToken` controls whether cached search responses are unique per user token.
 
 ---
 
@@ -154,11 +179,11 @@ public sealed class AncestorsEnricher : IAlgoliaDocumentEnricher
         var cul = ctx.Culture;
         var c = ctx.Content;
 
-        // Add whatever you want into doc.Data (must be JSON-serializable)
-        doc.Data["parentName"] = cul == null ? c.Parent?.Name : c.Parent?.Name(cul);
-        doc.Data["ancestors"]  = c.Ancestors()
+        // Add top-level Algolia attributes (must be JSON-serializable)
+        doc.TryAddField("parentName", cul == null ? c.Parent?.Name : c.Parent?.Name(cul));
+        doc.TryAddField("ancestors", c.Ancestors()
             .Select(a => cul == null ? a.Name : a.Name(cul))
-            .ToArray();
+            .ToArray());
     }
 }
 ```
@@ -170,10 +195,11 @@ builder.Services.AddVettvangurAlgolia();
 builder.Services.AddSingleton<IAlgoliaDocumentEnricher, AncestorsEnricher>();
 ```
 
-That’s it—during indexing, your enricher runs **once per (node, culture)** right after the package maps the document, and before it’s pushed to the `<baseIndex>_<culture>` index.
+That’s it—during indexing, your enricher runs **once per (node, culture)** right after the package maps the document, and before it’s pushed to the `<baseIndex>.<environment>.<culture>` index.
 
 ### Notes
-- Put your custom fields in `doc.Data[...]`.
+- Put your custom fields at the top level with `doc.TryAddField(alias, value)`.
+- Reserved metadata fields (`objectID`, `nodeId`, `contentTypeAlias`, `url`, `name`, `updateDate`, `updateDateUnixSecond`, `createDate`, `createDateUnixSecond`) can't be overwritten by custom fields.
 - Use `ctx.Culture` with `Name(culture)`, `Url(culture)`, and `Value(alias, culture)` to stay language-correct.
 - If you add multiple enrichers, `Order` controls who runs first; later enrichers can overwrite earlier fields.
 
@@ -239,7 +265,7 @@ If you want to add **extra fields** that don’t belong to a single property, us
 During mapping, for each whitelisted property the library:
 1. Reads the property value (`Value(alias, culture)`).
 2. Runs every registered `IAlgoliaPropertyValueConverter` whose `CanHandle` returns `true` for that property.
-3. Writes the **converted** (JSON-serializable) value to `AlgoliaDocument.Data[alias]`.
+3. Writes the **converted** (JSON-serializable) value as a top-level Algolia attribute.
 
 Converters run in ascending `Order` (lower first). If multiple converters modify the same value, **the last one wins**.
 

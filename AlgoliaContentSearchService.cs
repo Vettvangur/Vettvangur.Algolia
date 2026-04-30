@@ -1,6 +1,7 @@
 using Algolia.Search.Clients;
 using Algolia.Search.Models.Search;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
 namespace Vettvangur.Algolia;
@@ -12,6 +13,7 @@ public sealed class AlgoliaContentSearchRequest
 	public string Query { get; set; } = string.Empty;
 	public int Page { get; set; }
 	public int HitsPerPage { get; set; } = 20;
+	public string? UserToken { get; set; }
 }
 
 public sealed class AlgoliaContentSearchHit
@@ -47,14 +49,29 @@ public interface IAlgoliaContentSearchService
 
 internal sealed class AlgoliaContentSearchService : IAlgoliaContentSearchService
 {
+	private static readonly HashSet<string> MetadataFieldNames = new(StringComparer.OrdinalIgnoreCase)
+	{
+		"objectID",
+		"nodeId",
+		"contentTypeAlias",
+		"url",
+		"name",
+		"updateDate",
+		"updateDateUnixSecond",
+		"createDate",
+		"createDateUnixSecond"
+	};
+
 	private readonly AlgoliaConfig _config;
 	private readonly IMemoryCache _cache;
 	private readonly SearchClient _client;
+	private readonly string _environment;
 
-	public AlgoliaContentSearchService(IOptions<AlgoliaConfig> config, IMemoryCache cache)
+	public AlgoliaContentSearchService(IOptions<AlgoliaConfig> config, IMemoryCache cache, IHostEnvironment hostEnvironment)
 	{
 		_config = config.Value;
 		_cache = cache;
+		_environment = string.IsNullOrWhiteSpace(_config.Environment) ? hostEnvironment.EnvironmentName : _config.Environment.Trim();
 
 		var apiKey = string.IsNullOrWhiteSpace(_config.SearchApiKey)
 			? _config.AdminApiKey
@@ -96,11 +113,13 @@ internal sealed class AlgoliaContentSearchService : IAlgoliaContentSearchService
 	private async Task<AlgoliaContentSearchResult> ExecuteSearchAsync(AlgoliaContentSearchRequest request, CancellationToken ct)
 	{
 		var resolvedIndexName = ResolveIndexName(request.IndexName, request.Culture);
+		var userToken = GetUserToken(request);
 		var searchParams = new SearchParams(new SearchParamsObject
 		{
 			Query = request.Query?.Trim() ?? string.Empty,
 			Page = request.Page,
-			HitsPerPage = request.HitsPerPage
+			HitsPerPage = request.HitsPerPage,
+			UserToken = userToken
 		});
 
 		var response = await _client.SearchSingleIndexAsync<Dictionary<string, object?>>(resolvedIndexName, searchParams, cancellationToken: ct);
@@ -123,6 +142,9 @@ internal sealed class AlgoliaContentSearchService : IAlgoliaContentSearchService
 	private static AlgoliaContentSearchHit MapHit(Dictionary<string, object?> hit)
 	{
 		var objectId = GetValue(hit, "objectID");
+		var data = hit
+			.Where(kvp => !MetadataFieldNames.Contains(kvp.Key))
+			.ToDictionary(kvp => kvp.Key, kvp => kvp.Value, StringComparer.OrdinalIgnoreCase);
 
 		return new AlgoliaContentSearchHit
 		{
@@ -135,7 +157,7 @@ internal sealed class AlgoliaContentSearchService : IAlgoliaContentSearchService
 			UpdateDateUnixSecond = GetInt64(hit, "updateDateUnixSecond"),
 			CreateDate = GetDateTime(hit, "createDate"),
 			CreateDateUnixSecond = GetInt64(hit, "createDateUnixSecond"),
-			Data = hit
+			Data = data
 		};
 	}
 
@@ -199,14 +221,23 @@ internal sealed class AlgoliaContentSearchService : IAlgoliaContentSearchService
 		};
 	}
 
-	private static string ResolveIndexName(string indexName, string culture)
-		=> $"{indexName}_{culture.ToLowerInvariant()}";
+	private string ResolveIndexName(string indexName, string culture)
+		=> AlgoliaIndexNameResolver.Resolve(indexName, culture, _environment);
 
-	private static string BuildCacheKey(AlgoliaContentSearchRequest request)
+	private string? GetUserToken(AlgoliaContentSearchRequest request)
+	{
+		if (!_config.IncludeUserToken || string.IsNullOrWhiteSpace(request.UserToken))
+			return null;
+
+		return request.UserToken.Trim();
+	}
+
+	private string BuildCacheKey(AlgoliaContentSearchRequest request)
 		=> string.Join("|",
 			request.IndexName.Trim(),
 			request.Culture.Trim().ToLowerInvariant(),
 			request.Query.Trim(),
 			request.Page,
-			request.HitsPerPage);
+			request.HitsPerPage,
+			_config.VaryCacheByUserToken ? GetUserToken(request) ?? string.Empty : string.Empty);
 }

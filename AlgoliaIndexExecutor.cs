@@ -1,5 +1,6 @@
 using Algolia.Search.Clients;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using System.Globalization;
@@ -29,6 +30,7 @@ internal sealed class AlgoliaIndexExecutor
 	private readonly IUmbracoContextFactory _umbracoContextFactory;
 	private readonly IScopeProvider _scopeProvider;
 	private readonly IMemoryCache _cache;
+	private readonly string _environment;
 
 	public AlgoliaIndexExecutor(
 		ILogger<AlgoliaIndexExecutor> logger,
@@ -42,6 +44,7 @@ internal sealed class AlgoliaIndexExecutor
 		IUmbracoContextFactory umbracoContextFactory,
 		IScopeProvider scopeProvider,
 		IMemoryCache cache,
+		IHostEnvironment hostEnvironment,
 		IEnumerable<IAlgoliaDocumentEnricher>? enrichers = null,
 		IEnumerable<IAlgoliaPropertyValueConverter>? propConverters = null)
 	{
@@ -61,6 +64,7 @@ internal sealed class AlgoliaIndexExecutor
 		_umbracoContextFactory = umbracoContextFactory;
 		_scopeProvider = scopeProvider;
 		_cache = cache;
+		_environment = string.IsNullOrWhiteSpace(_config.Environment) ? hostEnvironment.EnvironmentName : _config.Environment.Trim();
 	}
 
 	// ---------- Public API ----------
@@ -117,7 +121,7 @@ internal sealed class AlgoliaIndexExecutor
 
 				foreach (var (culture, list) in entitiesToUpsertByCulture)
 				{
-					var indexNameWithCulture = $"{index.IndexName}_{culture.ToLowerInvariant()}";
+					var indexNameWithCulture = ResolveIndexName(index.IndexName, culture);
 
 					var documents = list
 						.Select(x =>
@@ -242,6 +246,9 @@ internal sealed class AlgoliaIndexExecutor
 		}
 	}
 
+	private string ResolveIndexName(string indexName, string culture)
+		=> AlgoliaIndexNameResolver.Resolve(indexName, culture, _environment);
+
 	private static (
 		Dictionary<string, List<IContent>> UpsertsByCulture,
 		Dictionary<string, HashSet<string>> DeletesByCulture
@@ -339,7 +346,7 @@ internal sealed class AlgoliaIndexExecutor
 
 		if (docs.Count == 0) return;
 
-		var indexName = $"{index.IndexName}_{culture.ToLowerInvariant()}";
+		var indexName = ResolveIndexName(index.IndexName, culture);
 		_logger.LogDebug("Save {Count} objects to {IndexName}", docs.Count, indexName);
 
 		var resp = await _client.SaveObjectsAsync(
@@ -355,7 +362,7 @@ internal sealed class AlgoliaIndexExecutor
 	{
 		if (string.IsNullOrWhiteSpace(culture)) return;
 
-		var indexName = $"{index.IndexName}_{culture}";
+		var indexName = ResolveIndexName(index.IndexName, culture);
 
 		_logger.LogDebug("Delete {Count} objects from {IndexName}", nodeKeys.Count(), indexName);
 
@@ -411,7 +418,7 @@ internal sealed class AlgoliaIndexExecutor
 			var converted = ConvertProperty(ctx, value);
 
 			if (HasIndexableValue(converted))
-				doc.Data[alias] = converted!;
+				doc.TryAddField(alias, converted!);
 
 			if (HasIndexableValue(converted) && transform != AlgoliaFieldTransform.None)
 			{
@@ -426,7 +433,7 @@ internal sealed class AlgoliaIndexExecutor
 				{
 					var derivedAlias = $"{alias}Unix";
 
-					doc.Data[derivedAlias] = unixValue;
+					doc.TryAddField(derivedAlias, unixValue);
 				}
 			}
 		}
@@ -454,6 +461,8 @@ internal sealed class AlgoliaIndexExecutor
 
 		foreach (var enricher in _enrichers)
 			enricher.Enrich(doc, ctx);
+
+		doc.RemoveReservedFields();
 
 		return doc;
 	}

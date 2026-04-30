@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.10.0](https://github.com/Vettvangur/Vettvangur.Algolia/compare/Vettvangur.Algolia-v1.9.3...Vettvangur.Algolia-v1.10.0) (2026-04-30)
+
+
+### Features
+
+* **algolia:** update search and index payloads ([01aab67](https://github.com/Vettvangur/Vettvangur.Algolia/commit/01aab67528f8a1350ff286e889ca88db49975870))
+
 ## [1.9.3](https://github.com/Vettvangur/Vettvangur.Algolia/compare/Vettvangur.Algolia-v1.9.2...Vettvangur.Algolia-v1.9.3) (2026-04-23)
 
 

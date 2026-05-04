@@ -385,10 +385,11 @@ internal sealed class AlgoliaIndexExecutor
 	{
 		using var contextReference = _umbracoContextFactory.EnsureUmbracoContext();
 
-		var name = culture == null ? c.Name : c.GetCultureName(culture) ?? "";
+		var variesByCulture = c.ContentType.Variations.VariesByCulture();
+		var name = variesByCulture && culture != null ? c.GetCultureName(culture) ?? "" : c.Name ?? "";
 		if (string.IsNullOrEmpty(name)) return null;
 
-		var url = culture == null ? _urlProvider.GetUrl(c.Id) : _urlProvider.GetUrl(c.Id, culture: culture);
+		var url = variesByCulture && culture != null ? _urlProvider.GetUrl(c.Id, culture: culture) : _urlProvider.GetUrl(c.Id);
 
 		var doc = new AlgoliaDocument
 		{

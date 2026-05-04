@@ -8,11 +8,11 @@ namespace Vettvangur.Algolia;
 
 public sealed class AlgoliaContentSearchRequest
 {
-	public string IndexName { get; set; } = string.Empty;
-	public string Culture { get; set; } = string.Empty;
-	public string Query { get; set; } = string.Empty;
+	public required string IndexName { get; set; }
+	public required string Culture { get; set; }
+	public required string Query { get; set; }
 	public int Page { get; set; }
-	public int HitsPerPage { get; set; } = 20;
+	public int HitsPerPage { get; set; } = 999;
 	public string? UserToken { get; set; }
 }
 
@@ -89,6 +89,9 @@ internal sealed class AlgoliaContentSearchService : IAlgoliaContentSearchService
 
 		if (string.IsNullOrWhiteSpace(request.Culture))
 			throw new ArgumentException("Culture is required.", nameof(request));
+
+		if (string.IsNullOrWhiteSpace(request.Query))
+			throw new ArgumentException("Query is required.", nameof(request));
 
 		if (request.Page < 0)
 			throw new ArgumentOutOfRangeException(nameof(request.Page), "Page must be zero or greater.");
@@ -236,7 +239,7 @@ internal sealed class AlgoliaContentSearchService : IAlgoliaContentSearchService
 		=> string.Join("|",
 			request.IndexName.Trim(),
 			request.Culture.Trim().ToLowerInvariant(),
-			request.Query.Trim(),
+			request.Query?.Trim() ?? string.Empty,
 			request.Page,
 			request.HitsPerPage,
 			_config.VaryCacheByUserToken ? GetUserToken(request) ?? string.Empty : string.Empty);

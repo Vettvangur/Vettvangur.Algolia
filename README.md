@@ -56,6 +56,14 @@ dotnet add package Vettvangur.Algolia
 Services.AddVettvangurAlgolia();
 ```
 
+4) **Build your index**:
+
+The package exposes a backoffice API endpoint for manually rebuilding Algolia indexes. This will need to be done on installation if you already have content:
+
+```http
+POST /umbraco/backoffice/api/Algolia/RebuildIndexes
+```
+
 ---
 
 ## How it works

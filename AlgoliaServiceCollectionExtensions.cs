@@ -31,6 +31,7 @@ public static class AlgoliaServiceCollectionExtensions
 
 		services.TryAddSingleton<IAlgoliaIndexService, AlgoliaIndexService>();
 		services.TryAddSingleton<IAlgoliaContentSearchService, AlgoliaContentSearchService>();
+		services.TryAddEnumerable(ServiceDescriptor.Singleton<IAlgoliaDocumentEnricher, BlockContentPickerEnricher>());
 
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IAlgoliaPropertyValueConverter, MediaPickerConverter>());
 		services.TryAddEnumerable(ServiceDescriptor.Singleton<IAlgoliaPropertyValueConverter, ContentPickerConverter>());

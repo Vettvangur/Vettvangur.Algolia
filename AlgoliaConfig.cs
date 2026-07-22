@@ -23,4 +23,14 @@ public class AlgoliaIndexContentType
 {
 	public string Alias { get; set; } = string.Empty;
 	public IEnumerable<string> Properties { get; set; } = [];
+	public IEnumerable<AlgoliaBlockContentPicker> BlockContentPickers { get; set; } = [];
+}
+
+public class AlgoliaBlockContentPicker
+{
+	public string ContainerAlias { get; set; } = string.Empty;
+	public IEnumerable<string> BlockAliases { get; set; } = [];
+	public IEnumerable<string> PickerAliases { get; set; } = [];
+	public IEnumerable<string> ReferencedProperties { get; set; } = [];
+	public string OutputAlias { get; set; } = string.Empty;
 }

@@ -373,6 +373,36 @@ builder.Services.AddSingleton<IAlgoliaPropertyValueConverter, MediaUrlOnlyConver
 - **Serializable values**: Return primitives/strings, arrays/lists, or dictionaries/POCOs that serialize cleanly to JSON.
 - **Targeting**: Use `ctx.Property.Alias` for per-alias logic, or `ctx.Property.PropertyType.EditorAlias` for editor-based logic. You also get the `ctx.BaseIndexName` if you need index-specific behavior.
 
+## Block List and Block Grid content pickers
+
+Use `BlockContentPickers` to index properties from content selected by a Content Picker or MNTP inside a Block List or Block Grid block. The extracted values are added to the containing page's Algolia record.
+
+```json
+{
+  "Alias": "article",
+  "Properties": [ "title", "bodyText" ],
+  "BlockContentPickers": [
+    {
+      "ContainerAlias": "content",
+      "BlockAliases": [ "faqBlock" ],
+      "PickerAliases": [ "faqItem" ],
+      "ReferencedProperties": [ "question", "answer" ],
+      "OutputAlias": "faqContent"
+    }
+  ]
+}
+```
+
+- `ContainerAlias` is the page property using either Block List or Block Grid.
+- `BlockAliases` limits processing to selected block element types.
+- `PickerAliases` names the picker properties within those blocks.
+- `ReferencedProperties` names the properties to extract from each selected content item.
+- `OutputAlias` is the searchable Algolia attribute that receives the flattened text.
+
+Multiple rules may be configured for a content type. Rich text is reduced to plain text, values are resolved for the indexed culture, and unresolved or unpublished referenced content is skipped.
+
+When `BlockContentPickers` is configured, publishing a referenced content item also queues document pages that reference it for reindexing. This uses Umbraco's tracked content relations, which are automatically maintained for pickers in Block List and Block Grid values.
+
 
 ## License
 

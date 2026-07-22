@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.11.0](https://github.com/Vettvangur/Vettvangur.Algolia/compare/Vettvangur.Algolia-v1.10.1...Vettvangur.Algolia-v1.11.0) (2026-07-22)
+
+
+### Features
+
+* **algolia:** index block content picker values ([ddf37c7](https://github.com/Vettvangur/Vettvangur.Algolia/commit/ddf37c7204ed3b7fc4981392c9506e3246e0189c))
+
 ## [1.10.1](https://github.com/Vettvangur/Vettvangur.Algolia/compare/Vettvangur.Algolia-v1.10.0...Vettvangur.Algolia-v1.10.1) (2026-05-04)
 
 

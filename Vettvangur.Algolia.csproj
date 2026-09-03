@@ -10,7 +10,7 @@
 		<PackageId>Vettvangur.Algolia</PackageId>
 		<Title>Vettvangur.Algolia</Title>
 		<Description>Umbraco → Algolia indexer with per-culture indexes, background queue/worker, and coalesced updates.</Description>
-		<Version>1.11.0</Version>
+		<Version>1.12.0</Version>
 		<Authors>Vettvangur</Authors>
 		<PackageTags>umbraco;plugin;package;algolia;indexer;search</PackageTags>
 		<PackageLicenseExpression>MIT</PackageLicenseExpression>

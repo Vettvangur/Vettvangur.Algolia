@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Umbraco.Cms.Core;
 using Umbraco.Cms.Core.Models.PublishedContent;
+using Umbraco.Cms.Core.PublishedCache;
 using Umbraco.Cms.Core.Web;
 using Umbraco.Extensions;
 
@@ -59,10 +60,10 @@ public sealed class MediaPickerConverter : IAlgoliaPropertyValueConverter
 			else
 			{
 				if (TryParseGuidUdiString(value, out var parsed))
-					return Shape(cache.GetById(parsed));
+					return Shape(GetById(cache, parsed));
 
 				if (Guid.TryParse(value, out var g))
-					return Shape(cache.GetById(new GuidUdi(Constants.UdiEntityType.Media, g)));
+					return Shape(GetById(cache, new GuidUdi(Constants.UdiEntityType.Media, g)));
 
 				var parts = value.Split([',', ';', '\n', '\r', ' '], StringSplitOptions.RemoveEmptyEntries);
 				if (parts.Length > 1)
@@ -71,7 +72,7 @@ public sealed class MediaPickerConverter : IAlgoliaPropertyValueConverter
 					{
 						if (TryParseGuidUdiString(part, out var pu))
 						{
-							var c = cache.GetById(pu);
+							var c = GetById(cache, pu);
 
 							var shape = Shape(c);
 
@@ -80,7 +81,7 @@ public sealed class MediaPickerConverter : IAlgoliaPropertyValueConverter
 						}
 						if (Guid.TryParse(part, out var pg))
 						{
-							var c = cache.GetById(new GuidUdi(Constants.UdiEntityType.Media, pg));
+							var c = GetById(cache, new GuidUdi(Constants.UdiEntityType.Media, pg));
 
 							var shape = Shape(c);
 
@@ -101,6 +102,16 @@ public sealed class MediaPickerConverter : IAlgoliaPropertyValueConverter
 
 		return list;
 	}
+
+	private static IPublishedContent? GetById(IPublishedMediaCache cache, GuidUdi udi)
+	{
+#if NET10_0_OR_GREATER
+		return cache.GetById(udi.Guid);
+#else
+		return cache.GetById(udi);
+#endif
+	}
+
 	private static Dictionary<string, object?> Shape(IPublishedContent? c)
 	=> c == null
 		? new Dictionary<string, object?>()

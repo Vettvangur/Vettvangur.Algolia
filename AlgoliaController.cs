@@ -1,8 +1,19 @@
 using Microsoft.AspNetCore.Mvc;
+#if NET10_0_OR_GREATER
+using Umbraco.Cms.Api.Management.Controllers;
+using Umbraco.Cms.Api.Management.Routing;
+#else
 using Umbraco.Cms.Web.BackOffice.Controllers;
+#endif
 
 namespace Vettvangur.Algolia;
+#if NET10_0_OR_GREATER
+[VersionedApiBackOfficeRoute("algolia")]
+[ApiExplorerSettings(GroupName = "Algolia")]
+public class AlgoliaController : ManagementApiControllerBase
+#else
 public class AlgoliaController : UmbracoAuthorizedApiController
+#endif
 {
 	private readonly IAlgoliaIndexService _algoliaIndexService;
 	public AlgoliaController(IAlgoliaIndexService algoliaIndexService)
@@ -10,6 +21,7 @@ public class AlgoliaController : UmbracoAuthorizedApiController
 		_algoliaIndexService = algoliaIndexService;
 	}
 
+	[HttpPost("rebuild-indexes")]
 	public async Task<IActionResult> RebuildIndexesAsync([FromQuery] string? indexName = null, CancellationToken ct = default)
 	{
 		try

@@ -31,7 +31,9 @@ jobs:
       - uses: actions/setup-dotnet@v4
         if: ${{ steps.rp.outputs.release_created == 'true' }}
         with:
-          dotnet-version: "8.0.x"
+          dotnet-version: |
+            8.0.x
+            10.0.x
 
       - name: Restore
         if: ${{ steps.rp.outputs.release_created == 'true' }}

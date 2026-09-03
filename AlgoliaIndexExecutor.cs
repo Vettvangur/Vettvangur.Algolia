@@ -3,6 +3,7 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using System.Collections;
 using System.Globalization;
 using Umbraco.Cms.Core.Media.EmbedProviders;
 using Umbraco.Cms.Core.Models;
@@ -23,7 +24,7 @@ internal sealed class AlgoliaIndexExecutor
 	private readonly IReadOnlyList<IAlgoliaDocumentEnricher> _enrichers;
 	private readonly IReadOnlyList<IAlgoliaPropertyValueConverter> _propConverters;
 	private readonly IContentService _contentService;
-	private readonly ILocalizationService _languageService;
+	private readonly IServiceProvider _serviceProvider;
 	private readonly PropertyEditorCollection _propertyEditorsCollection;
 	private readonly IContentTypeService _contentTypeService;
 	private readonly IPublishedUrlProvider _urlProvider;
@@ -37,7 +38,7 @@ internal sealed class AlgoliaIndexExecutor
 		ISearchClient client,
 		IOptions<AlgoliaConfig> config,
 		IContentService contentService,
-		ILocalizationService languageService,
+		IServiceProvider serviceProvider,
 		PropertyEditorCollection propertyEditorsCollection,
 		IContentTypeService contentTypeService,
 		IPublishedUrlProvider urlProvider,
@@ -57,7 +58,7 @@ internal sealed class AlgoliaIndexExecutor
 		_propConverters = (propConverters ?? Array.Empty<IAlgoliaPropertyValueConverter>())
 						  .OrderBy(c => c.Order).ToList();
 		_contentService = contentService;
-		_languageService = languageService;
+		_serviceProvider = serviceProvider;
 		_propertyEditorsCollection = propertyEditorsCollection;
 		_contentTypeService = contentTypeService;
 		_urlProvider = urlProvider;
@@ -95,8 +96,7 @@ internal sealed class AlgoliaIndexExecutor
 			{
 				_logger.LogInformation("Building index for {ContentType}", alias);
 
-				using var ctx = _umbracoContextFactory.EnsureUmbracoContext();
-				var contentType = ctx.UmbracoContext.Content?.GetContentType(alias);
+				var contentType = _contentTypeService.Get(alias);
 
 				if (contentType is null) continue;
 
@@ -506,7 +506,12 @@ internal sealed class AlgoliaIndexExecutor
 
 		var indexValue = indexValues.First();
 
-		var returnValue = indexValue.Value.FirstOrDefault()?.ToString() ?? "";
+		string returnValue;
+#if NET10_0_OR_GREATER
+		returnValue = indexValue.Values.FirstOrDefault()?.ToString() ?? "";
+#else
+		returnValue = indexValue.Value.FirstOrDefault()?.ToString() ?? "";
+#endif
 
 		return returnValue;
 	}
@@ -516,15 +521,46 @@ internal sealed class AlgoliaIndexExecutor
 		{
 			entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5);
 
-			var cultures = _languageService
-				.GetAllLanguages()
-				.Select(l => l.IsoCode)
-				.Distinct(StringComparer.OrdinalIgnoreCase)
-				.ToArray();
+			var cultures = GetAllCultures();
 
 			return Task.FromResult<string[]?>(cultures);
 		}) ?? Array.Empty<string>();
 	}
+
+	private string[] GetAllCultures()
+	{
+		var localizationServiceType = Type.GetType("Umbraco.Cms.Core.Services.ILocalizationService, Umbraco.Cms.Core");
+		var localizationService = localizationServiceType is null ? null : _serviceProvider.GetService(localizationServiceType);
+		var getAllLanguages = localizationService?.GetType().GetMethod("GetAllLanguages", Type.EmptyTypes);
+		if (getAllLanguages?.Invoke(localizationService, null) is IEnumerable languages)
+		{
+			return GetIsoCodes(languages);
+		}
+
+		var languageServiceType = Type.GetType("Umbraco.Cms.Core.Services.ILanguageService, Umbraco.Cms.Core");
+		var languageService = languageServiceType is null ? null : _serviceProvider.GetService(languageServiceType);
+		var getAllAsync = languageService?.GetType().GetMethods()
+			.FirstOrDefault(method => method.Name == "GetAllAsync" && method.GetParameters().Length <= 1);
+
+		if (getAllAsync?.Invoke(languageService, getAllAsync.GetParameters().Length == 0 ? null : [CancellationToken.None]) is not Task task)
+		{
+			return Array.Empty<string>();
+		}
+
+		task.GetAwaiter().GetResult();
+		return task.GetType().GetProperty("Result")?.GetValue(task) is IEnumerable result
+			? GetIsoCodes(result)
+			: Array.Empty<string>();
+	}
+
+	private static string[] GetIsoCodes(IEnumerable languages)
+		=> languages
+			.Cast<object>()
+			.Select(language => language.GetType().GetProperty("IsoCode")?.GetValue(language)?.ToString())
+			.Where(isoCode => !string.IsNullOrWhiteSpace(isoCode))
+			.Select(isoCode => isoCode!)
+			.Distinct(StringComparer.OrdinalIgnoreCase)
+			.ToArray();
 
 	private Task<Dictionary<Guid, IContentType>> GetContentTypesAsync()
 	{

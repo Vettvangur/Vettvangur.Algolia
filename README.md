@@ -1,7 +1,7 @@
 # Vettvangur.Algolia
 
 Umbraco → Algolia indexer with per-culture indexes, a background queue/worker, and config-driven field selection.
-Built for Umbraco 13+ and the Algolia .NET client (v8+).
+Supports Umbraco 13, 17, and 18. The package automatically selects its `net8.0` asset for Umbraco 13 and its `net10.0` asset for Umbraco 17 or 18.
 
 ## Highlights
 
@@ -117,7 +117,7 @@ public interface IAlgoliaIndexService
 
 ### Rebuild indexes API
 
-The package exposes a backoffice API endpoint for manually rebuilding Algolia indexes:
+For Umbraco 13, the package exposes a backoffice API endpoint for manually rebuilding Algolia indexes:
 
 ```http
 POST /umbraco/backoffice/api/Algolia/RebuildIndexes
@@ -129,7 +129,7 @@ To rebuild one configured base index, pass its configured `IndexName` as a query
 POST /umbraco/backoffice/api/Algolia/RebuildIndexes?indexName=SearchIndex
 ```
 
-This endpoint inherits from `UmbracoAuthorizedApiController`, so the caller must be an authorized Umbraco backoffice user with a valid logged-in backoffice session.
+For Umbraco 17 and 18, the rebuild endpoint is available through the Management API. Find the versioned `Algolia` endpoint in `/umbraco/swagger/`; it is available to authorized Umbraco backoffice users.
 
 ### Search service
 

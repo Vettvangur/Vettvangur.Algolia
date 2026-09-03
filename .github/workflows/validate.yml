@@ -1,0 +1,42 @@
+name: validate
+
+on:
+  pull_request:
+  push:
+    branches: ["main"]
+
+permissions:
+  contents: read
+
+jobs:
+  build-package:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - name: Restore locked dependencies
+        run: dotnet restore --locked-mode
+
+      - name: Build
+        run: dotnet build -c Release --no-restore
+
+      - name: Pack
+        run: dotnet pack -c Release --no-build -o ./artifacts
+
+      - name: Verify package assets
+        shell: bash
+        run: |
+          unzip -l ./artifacts/*.nupkg | grep -q 'lib/net8.0/Vettvangur.Algolia.dll'
+          unzip -l ./artifacts/*.nupkg | grep -q 'lib/net10.0/Vettvangur.Algolia.dll'
+
+      - name: Build against Umbraco 18
+        run: |
+          dotnet restore --force-evaluate -p:UmbracoNet10Version=18.1.1
+          dotnet build -c Release --no-restore -p:UmbracoNet10Version=18.1.1

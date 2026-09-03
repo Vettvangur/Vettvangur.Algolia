@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Umbraco.Cms.Core;
 using Umbraco.Cms.Core.Models.PublishedContent;
+using Umbraco.Cms.Core.PublishedCache;
 using Umbraco.Cms.Core.Web;
 using Umbraco.Extensions;
 
@@ -42,19 +43,19 @@ public sealed class ContentPickerConverter : IAlgoliaPropertyValueConverter
 
 			// UDI / GuidUDI instances
 			if (value is Udi udi)
-				return Shape(cache?.GetById(udi), ctx.NodeCulture);
+				return Shape(GetById(cache, udi), ctx.NodeCulture);
 
 			if (value is GuidUdi gudi)
-				return Shape(cache?.GetById(gudi), ctx.NodeCulture);
+				return Shape(GetById(cache, gudi), ctx.NodeCulture);
 
 			// Strings (UDI, GUID, comma/semicolon/whitespace-delimited)
 			if (value is string s)
 			{
 				if (TryParseGuidUdiString(s, out var parsed))
-					return Shape(cache?.GetById(parsed), ctx.NodeCulture);
+					return Shape(GetById(cache, parsed), ctx.NodeCulture);
 
 				if (Guid.TryParse(s, out var g))
-					return Shape(cache?.GetById(new GuidUdi(Constants.UdiEntityType.Document, g)), ctx.NodeCulture);
+					return Shape(GetById(cache, new GuidUdi(Constants.UdiEntityType.Document, g)), ctx.NodeCulture);
 
 				var parts = s.Split(new[] { ',', ';', '\n', '\r', ' ' }, StringSplitOptions.RemoveEmptyEntries);
 				if (parts.Length > 1)
@@ -64,7 +65,7 @@ public sealed class ContentPickerConverter : IAlgoliaPropertyValueConverter
 					{
 						if (TryParseGuidUdiString(part, out var pu))
 						{
-							var c = cache?.GetById(pu);
+							var c = GetById(cache, pu);
 
 							var shape = Shape(c, ctx.NodeCulture);
 
@@ -73,7 +74,7 @@ public sealed class ContentPickerConverter : IAlgoliaPropertyValueConverter
 						}
 						if (Guid.TryParse(part, out var pg))
 						{
-							var c = cache?.GetById(new GuidUdi(Constants.UdiEntityType.Document, pg));
+							var c = GetById(cache, new GuidUdi(Constants.UdiEntityType.Document, pg));
 
 							var shape = Shape(c, ctx.NodeCulture);
 
@@ -88,14 +89,14 @@ public sealed class ContentPickerConverter : IAlgoliaPropertyValueConverter
 
 			// IEnumerable<...> of UDIs / strings
 			if (value is IEnumerable<Udi> udis)
-				return udis.Select(x => cache?.GetById(x))
+				return udis.Select(x => GetById(cache, x))
 									.Where(x => x != null)!
 									.Select(x => Shape(x, ctx.NodeCulture))
 									.Where(x => x != null)
 									.ToArray();
 
 			if (value is IEnumerable<GuidUdi> gudis)
-				return gudis.Select(x => cache?.GetById(x))
+				return gudis.Select(x => GetById(cache, x))
 									 .Where(x => x != null)!
 									 .Select(x => Shape(x, ctx.NodeCulture))
 									 .Where(x => x != null)
@@ -108,7 +109,7 @@ public sealed class ContentPickerConverter : IAlgoliaPropertyValueConverter
 				{
 					if (TryParseGuidUdiString(us, out var pu))
 					{
-						var c = cache?.GetById(pu);
+						var c = GetById(cache, pu);
 
 						var shape = Shape(c, ctx.NodeCulture);
 
@@ -116,7 +117,7 @@ public sealed class ContentPickerConverter : IAlgoliaPropertyValueConverter
 					}
 					else if (Guid.TryParse(us, out var g))
 					{
-						var c = cache?.GetById(new GuidUdi(Constants.UdiEntityType.Document, g));
+						var c = GetById(cache, new GuidUdi(Constants.UdiEntityType.Document, g));
 
 						var shape = Shape(c, ctx.NodeCulture);
 
@@ -136,6 +137,24 @@ public sealed class ContentPickerConverter : IAlgoliaPropertyValueConverter
 		}
 
 		
+	}
+
+	private static IPublishedContent? GetById(IPublishedContentCache? cache, Udi udi)
+	{
+#if NET10_0_OR_GREATER
+		return udi is GuidUdi guidUdi ? GetById(cache, guidUdi) : null;
+#else
+		return cache?.GetById(udi);
+#endif
+	}
+
+	private static IPublishedContent? GetById(IPublishedContentCache? cache, GuidUdi udi)
+	{
+#if NET10_0_OR_GREATER
+		return cache?.GetById(udi.Guid);
+#else
+		return cache?.GetById(udi);
+#endif
 	}
 
 	private static Dictionary<string, object?>? Shape(IPublishedContent? c, string? culture)

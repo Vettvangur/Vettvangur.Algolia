@@ -40,6 +40,7 @@
 	</PropertyGroup>
 
 	<ItemGroup>
+		<Compile Remove="tests/**/*.cs" />
 		<PackageReference Include="Algolia.Search" Version="7.40.0"/>
 		<PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All"/>
 	</ItemGroup>

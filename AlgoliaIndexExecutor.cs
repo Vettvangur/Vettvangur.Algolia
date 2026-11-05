@@ -1,9 +1,9 @@
 using Algolia.Search.Clients;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using System.Collections;
 using System.Globalization;
 using Umbraco.Cms.Core.Media.EmbedProviders;
 using Umbraco.Cms.Core.Models;
@@ -517,50 +517,23 @@ internal sealed class AlgoliaIndexExecutor
 	}
 	private async Task<string[]> GetAllCulturesAsync()
 	{
-		return await _cache.GetOrCreateAsync("umbraco:languages:all", entry =>
+		return await _cache.GetOrCreateAsync("umbraco:languages:all", async entry =>
 		{
 			entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5);
 
-			var cultures = GetAllCultures();
-
-			return Task.FromResult<string[]?>(cultures);
+			// Use the target framework's supported API rather than assembly-name reflection.
+#if NET10_0_OR_GREATER
+			var languages = await _serviceProvider.GetRequiredService<ILanguageService>().GetAllAsync();
+#else
+			var languages = _serviceProvider.GetRequiredService<ILocalizationService>().GetAllLanguages();
+#endif
+			return languages
+				.Select(language => language.IsoCode)
+				.Where(isoCode => !string.IsNullOrWhiteSpace(isoCode))
+				.Distinct(StringComparer.OrdinalIgnoreCase)
+				.ToArray();
 		}) ?? Array.Empty<string>();
 	}
-
-	private string[] GetAllCultures()
-	{
-		var localizationServiceType = Type.GetType("Umbraco.Cms.Core.Services.ILocalizationService, Umbraco.Cms.Core");
-		var localizationService = localizationServiceType is null ? null : _serviceProvider.GetService(localizationServiceType);
-		var getAllLanguages = localizationService?.GetType().GetMethod("GetAllLanguages", Type.EmptyTypes);
-		if (getAllLanguages?.Invoke(localizationService, null) is IEnumerable languages)
-		{
-			return GetIsoCodes(languages);
-		}
-
-		var languageServiceType = Type.GetType("Umbraco.Cms.Core.Services.ILanguageService, Umbraco.Cms.Core");
-		var languageService = languageServiceType is null ? null : _serviceProvider.GetService(languageServiceType);
-		var getAllAsync = languageService?.GetType().GetMethods()
-			.FirstOrDefault(method => method.Name == "GetAllAsync" && method.GetParameters().Length <= 1);
-
-		if (getAllAsync?.Invoke(languageService, getAllAsync.GetParameters().Length == 0 ? null : [CancellationToken.None]) is not Task task)
-		{
-			return Array.Empty<string>();
-		}
-
-		task.GetAwaiter().GetResult();
-		return task.GetType().GetProperty("Result")?.GetValue(task) is IEnumerable result
-			? GetIsoCodes(result)
-			: Array.Empty<string>();
-	}
-
-	private static string[] GetIsoCodes(IEnumerable languages)
-		=> languages
-			.Cast<object>()
-			.Select(language => language.GetType().GetProperty("IsoCode")?.GetValue(language)?.ToString())
-			.Where(isoCode => !string.IsNullOrWhiteSpace(isoCode))
-			.Select(isoCode => isoCode!)
-			.Distinct(StringComparer.OrdinalIgnoreCase)
-			.ToArray();
 
 	private Task<Dictionary<Guid, IContentType>> GetContentTypesAsync()
 	{

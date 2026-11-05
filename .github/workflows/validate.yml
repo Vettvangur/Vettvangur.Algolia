@@ -30,6 +30,11 @@ jobs:
       - name: Pack
         run: dotnet pack -c Release --no-build -o ./artifacts
 
+      - name: Offline language and block indexing regressions
+        run: |
+          dotnet run --project tests/Vettvangur.Algolia.Tests -c Release -f net8.0 -p:GeneratePackageOnBuild=false
+          dotnet run --project tests/Vettvangur.Algolia.Tests -c Release -f net10.0 -p:GeneratePackageOnBuild=false
+
       - name: Verify package assets
         shell: bash
         run: |
